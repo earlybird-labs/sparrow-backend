@@ -11,10 +11,17 @@ from .handlers import (
 )
 from .utils import safe_say
 
+
 app = App(
     token=SLACK_BOT_TOKEN,
     signing_secret=SLACK_SIGNING_SECRET,
 )
+
+
+@app.event("url_verification")
+def handle_url_verification(event_data):
+    return event_data["challenge"]
+
 
 app.action("open_modal")(handle_open_modal)
 app.event("message")(handle_message)
