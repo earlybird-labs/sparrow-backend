@@ -6,6 +6,10 @@ from functools import wraps
 from slack_sdk.errors import SlackApiError
 
 
+import os
+import time
+
+
 def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
     """
     Retry calling the decorated function using an exponential backoff.
@@ -93,6 +97,28 @@ def fetch_and_format_thread_messages(client, message):
     except Exception as e:
         logging.error(f"Error fetching or formatting thread messages: {e}")
         return []
+
+
+def save_audio_file(file_url, file_type):
+    # Fetch the audio file content from the URL
+    response = httpx.get(file_url)
+
+    # Generate a filename with the current timestamp and the provided file type
+    filename = f"{int(time.time())}.{file_type}"
+
+    # Define the path where the file will be saved (ensure the app/tmp directory exists)
+    file_path = os.path.join("app", "tmp", filename)
+
+    # Save the file content to the specified path
+    with open(file_path, "wb") as file:
+        file.write(response.content)
+
+    # Return the path to the saved file
+    return file_path
+
+
+def delete_file(file_path):
+    os.remove(file_path)
 
 
 def get_file_data(file_url):

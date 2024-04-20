@@ -4,7 +4,7 @@ from instructor import Mode
 from .config import TOGETHER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 from .models import AIResponse
 from .prompts import sparrow_system_prompt
-from .utils import get_file_data
+from .utils import get_file_data, save_audio_file, delete_file
 
 from openai import OpenAI
 from anthropic import Anthropic
@@ -25,16 +25,19 @@ simple_lm.set_model("together", "meta-llama/Llama-3-70b-chat-hf")
 simple_lm.set_model("ollama", "dolphin")
 
 
-def transcribe_audio(file_url):
-    audio_file = get_file_data(file_url)
+def transcribe_audio(file_url, file_type):
+    audio_file_path = save_audio_file(file_url, file_type)
+    audio_file = open(audio_file_path, "rb")
     transcription = openai_client.audio.transcriptions.create(
         model="whisper-1", file=audio_file
     )
+    # delete the audio file
+    delete_file(audio_file_path)
     return transcription.text
 
 
 def create_speech(text):
-    speech_file_path = "speech.mp3"
+    speech_file_path = "app/tmp/speech.mp3"
     response = openai_client.audio.speech.create(
         model="tts-1", voice="alloy", input=text
     )
@@ -45,7 +48,7 @@ def create_speech(text):
 
 def describe_vision_anthropic(file_url, image_media_type, message=None):
     if message:
-        prompt = message
+        prompt = f"The user's request is {message}. Your job is to describe this image in as much detail as possible as it relates to the user's request to be used in your response."
     else:
         prompt = "Describe this image in as much detail as possible. Extract as much information as possible from the image."
 
