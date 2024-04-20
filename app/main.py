@@ -1,89 +1,23 @@
-import os
-from dotenv import load_dotenv
-
 import logging
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from .blocks.index import bug_form
+from .config import SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET
+from .llm import llm_response
+from .handlers import handle_open_modal
 
-from pydantic import BaseModel
-
-import uvicorn
-
-from .models import SlackCommand, SparrowResponse, SlackEvent, SlackEventCallback
-from .prompts import sparrow_system_prompt
-from .utils import extract_plain_text_from_blocks
-
-from simple_lm import SimpleLM
 from slack_bolt import App
 
 
-load_dotenv()
-
-
-# app = FastAPI()
-
-# Initialize your app with your bot token and signing secret
 app = App(
-    token=os.environ.get("SLACK_BOT_TOKEN"),
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+    token=SLACK_BOT_TOKEN,
+    signing_secret=SLACK_SIGNING_SECRET,
 )
-
-lm = SimpleLM()
-
-together = lm.setup_client(
-    client_name="together",
-    api_key=os.getenv("TOGETHER_API_KEY"),
-)
-
-ollama = lm.setup_client(client_name="ollama", api_key="null")
-
-
-def lm_response(user_message):
-    response = together.create(
-        model="meta-llama/Llama-3-70b-chat-hf",
-        messages=[
-            {"role": "system", "content": sparrow_system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        response_model=SparrowResponse,
-    )
-    return response.text
 
 
 # Listen for a shortcut invocation
 @app.action("open_modal")
 def open_modal(ack, body, client):
-    # Acknowledge the command request
-    ack()
-    # Call views_open with the built-in client
-    client.views_open(
-        # Pass a valid trigger_id within 3 seconds of receiving it
-        trigger_id=body["trigger_id"],
-        # View payload
-        view={
-            "type": "modal",
-            # View identifier
-            "callback_id": "view_1",
-            "title": {"type": "plain_text", "text": "Sparrow"},
-            "submit": {"type": "plain_text", "text": "Submit"},
-            "blocks": [
-                {
-                    "type": "input",
-                    "block_id": "input_c",
-                    "label": {
-                        "type": "plain_text",
-                        "text": "What are your hopes and dreams?",
-                    },
-                    "element": {
-                        "type": "plain_text_input",
-                        "action_id": "dreamy_input",
-                        "multiline": True,
-                    },
-                },
-            ],
-        },
-    )
+    handle_open_modal(ack, body, client)
 
 
 @app.event("app_mention")
@@ -92,30 +26,12 @@ def respond_to_mention(event, say):
         # Post a message in response to the app mention
         message = event["text"]
         print(message)
-        response = lm_response(message)
-        say(
-            text=response,
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": response,
-                    },
-                },
-                {"type": "divider"},
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "Click Me"},
-                            "action_id": "open_modal",
-                        }
-                    ],
-                },
-            ],
-        )
+        response = llm_response(message)
+
+        if response.bug:
+            say(text=response.text, blocks=bug_form)
+        else:
+            say(text=response.text)
 
     except Exception as e:
         logging.error(f"Error responding to app mention: {e}")

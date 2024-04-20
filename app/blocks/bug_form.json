@@ -1,0 +1,108 @@
+{
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "Fill out your bug form as descriptive as possible."
+      }
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Bug Form",
+        "emoji": true
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "input",
+      "element": {
+        "type": "plain_text_input",
+        "action_id": "plain_text_input-action"
+      },
+      "label": {
+        "type": "plain_text",
+        "text": "Name of the Issue",
+        "emoji": true
+      }
+    },
+    {
+      "type": "input",
+      "element": {
+        "type": "plain_text_input",
+        "multiline": true,
+        "action_id": "plain_text_input-action"
+      },
+      "label": {
+        "type": "plain_text",
+        "text": "Description of Issue",
+        "emoji": true
+      }
+    },
+    {
+      "type": "input",
+      "element": {
+        "type": "static_select",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Select an item",
+          "emoji": true
+        },
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Low",
+              "emoji": true
+            },
+            "value": "value-0"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Medium",
+              "emoji": true
+            },
+            "value": "value-1"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "High",
+              "emoji": true
+            },
+            "value": "value-2"
+          }
+        ],
+        "action_id": "static_select-action"
+      },
+      "label": {
+        "type": "plain_text",
+        "text": "Urgency",
+        "emoji": true
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Submit",
+            "emoji": true
+          },
+          "value": "click_me_123",
+          "action_id": "actionId-0"
+        }
+      ]
+    }
+  ]
+}
