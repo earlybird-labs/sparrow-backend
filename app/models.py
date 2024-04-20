@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Block(BaseModel):
@@ -17,8 +17,12 @@ class Button(BaseModel):
     action_id: str
 
 
-class SparrowResponse(BaseModel):
+class AIResponse(BaseModel):
     text: str
+    bug: bool = Field(
+        default=False,
+        description="Whether the users message indicates they are having a bug.",
+    )
 
 
 from typing import List, Optional
