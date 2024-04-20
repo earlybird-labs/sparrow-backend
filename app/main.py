@@ -74,25 +74,27 @@ def respond_to_mention(ack, event, say):
         # Extract the timestamp of the original message to use as thread_ts
         thread_ts = event["ts"]
 
-        if response.bug:
-            blocks = [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": response.ai_response,
-                    },
-                }
-            ] + bug_form
+        safe_say(say, text=response.ai_response, thread_ts=thread_ts)
 
-            safe_say(
-                say,
-                text=response.ai_response,
-                blocks=blocks,
-                thread_ts=thread_ts,
-            )
-        else:
-            safe_say(say, text=response.ai_response, thread_ts=thread_ts)
+        # if response.bug:
+        #     blocks = [
+        #         {
+        #             "type": "section",
+        #             "text": {
+        #                 "type": "mrkdwn",
+        #                 "text": response.ai_response,
+        #             },
+        #         }
+        #     ] + bug_form
+
+        #     safe_say(
+        #         say,
+        #         text=response.ai_response,
+        #         blocks=blocks,
+        #         thread_ts=thread_ts,
+        #     )
+        # else:
+        #     safe_say(say, text=response.ai_response, thread_ts=thread_ts)
 
     except Exception as e:
         logging.error(f"Error responding to app mention: {e}")

@@ -40,7 +40,16 @@ def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
 # Apply the retry decorator to the say function
 @retry(SlackApiError, tries=5, delay=2, backoff=3)
 def safe_say(say, *args, **kwargs):
-    say(*args, **kwargs)
+    # Check if 'text' is in kwargs or if it's empty
+    if "text" not in kwargs or not kwargs["text"]:
+        # Provide a default text message or raise an error
+        kwargs["text"] = "Sparrow is facing an issue, can you resend the message?"
+    # Proceed to call the original say function with the updated kwargs
+    try:
+        say(*args, **kwargs)
+    except SlackApiError as e:
+        # Handle the SlackApiError
+        print(f"Slack API Error: {e}")
 
 
 def extract_plain_text_from_blocks(blocks):
