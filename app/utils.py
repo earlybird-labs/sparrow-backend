@@ -1,4 +1,7 @@
+import logging
 import time
+import base64
+import httpx
 from functools import wraps
 from slack_sdk.errors import SlackApiError
 
@@ -52,17 +55,47 @@ def safe_say(say, *args, **kwargs):
         print(f"Slack API Error: {e}")
 
 
-def extract_plain_text_from_blocks(blocks):
-    """
-    Extracts plain text from the given blocks of a Slack event.
+def is_bot_thread(client, messages):
+    bot_id = client.auth_test()["user_id"]
+    return any(f"<@{bot_id}>" in msg["content"] for msg in messages)
 
-    :param blocks: A list of blocks from a Slack event.
-    :return: A string containing all the plain text extracted from the blocks.
+
+def fetch_and_format_thread_messages(client, message):
     """
-    plain_text = ""
-    for block in blocks:
-        for element in block.get("elements", []):
-            for item in element.get("elements", []):
-                if item.get("type") == "text":
-                    plain_text += item.get("text", "")
-    return plain_text
+    Fetches all messages from a thread and formats them.
+
+    Parameters:
+    - client: The Slack client instance used to interact with the Slack API.
+    - message: The message event data containing details about the thread.
+
+    Returns:
+    A list of dictionaries, each representing a formatted message.
+    """
+    try:
+        thread_ts = message["thread_ts"]
+        channel_id = message["channel"]
+        bot_id = client.auth_test()["user_id"]
+
+        # Fetch all messages from the thread
+        thread_messages_response = client.conversations_replies(
+            channel=channel_id, ts=thread_ts
+        )
+        thread_messages = thread_messages_response["messages"]
+
+        # Format messages
+        formatted_messages = []
+        for msg in thread_messages:
+            # Determine the role based on the user who sent the message
+            role = "assistant" if msg.get("user") == bot_id else "user"
+            formatted_messages.append({"role": role, "content": msg["text"]})
+
+        return formatted_messages
+    except Exception as e:
+        logging.error(f"Error fetching or formatting thread messages: {e}")
+        return []
+
+
+def get_file_data(file_url):
+    response = httpx.get(file_url)
+    file_data = base64.b64encode(response.content).decode("utf-8")
+    return file_data
