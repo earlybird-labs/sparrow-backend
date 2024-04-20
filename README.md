@@ -42,7 +42,7 @@ Follow these steps to set up the Slack bot on your local machine:
     OPENAI_API_KEY=your_openai_api_key
     ```
 
-5. **Run the Bot**: Finally, start the bot using the command below. You can also deploy the bot using the provided `Procfile`.
+5. **Run the Bot**: Finally, start the bot using the command below.
 
     ```bash
     python -m app.main
