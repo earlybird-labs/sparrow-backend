@@ -32,4 +32,6 @@ app.event("message")(handle_message)
 app.event("app_mention")(handle_app_mention)
 
 if __name__ == "__main__":
-    app.start(port=int(os.environ.get("PORT", 3000)))
+    port = int(os.environ.get("PORT", 30000))
+    print(f"Starting app on port {port}")
+    app.start(port=port)
