@@ -1,3 +1,5 @@
+import os
+
 from slack_bolt import App
 
 from .blocks.index import bug_form
@@ -30,4 +32,4 @@ app.event("message")(handle_message)
 app.event("app_mention")(handle_app_mention)
 
 if __name__ == "__main__":
-    app.start(port=5000)
+    app.start(port=int(os.environ.get("PORT", 3000)))
