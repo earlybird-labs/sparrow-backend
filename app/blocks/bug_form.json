@@ -1,13 +1,6 @@
 {
   "blocks": [
     {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "Fill out your bug form as descriptive as possible."
-      }
-    },
-    {
       "type": "header",
       "text": {
         "type": "plain_text",
