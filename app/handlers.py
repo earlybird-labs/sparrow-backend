@@ -49,6 +49,7 @@ def generate_response(prompt):
         json={"model": "dolphin", "prompt": prompt, "stream": False},
     )
     if response.status_code == 200:
-        return response.json()
+        return response.json()["response"]
+        # return "For sure"
     else:
         raise Exception(f"Failed to generate response: {response.text}")
