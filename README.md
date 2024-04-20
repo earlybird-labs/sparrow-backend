@@ -9,15 +9,31 @@ This Slack bot is designed to assist users in a Slack workspace by responding to
 - **Bug Reporting**: Provides a structured form for reporting bugs, including issue name, description, and urgency.
 - **AI Integration**: Utilizes language models to generate conversational and helpful responses.
 
-## Setup
+## Setup Instructions
 
-1. **Requirements Installation**: Install the necessary Python packages from [requirements.txt](file:///Users/joepetrantoni/earlybird/sparrow-python/requirements.txt#1%2C1-1%2C1).
+Follow these steps to set up the Slack bot on your local machine:
+
+1. **Clone the Repository**: Start by cloning the repository to your local machine.
+
+    ```bash
+    git clone https://github.com/earlybird-labs/sparrow-backend.git
+    cd sparrow-backend
+    ```
+
+2. **Create a Virtual Environment**: Set up a Python virtual environment for project dependencies.
+
+    ```bash
+    python3 -m venv env
+    source env/bin/activate
+    ```
+
+3. **Install Dependencies**: Install the required Python packages specified in `requirements.txt`.
 
     ```bash
     pip install -r requirements.txt
     ```
 
-2. **Environment Variables**: Set up the required environment variables in a `.env` file.
+4. **Configure Environment Variables**: Create a `.env` file in the root directory and populate it with the necessary environment variables.
 
     ```plaintext
     SLACK_BOT_TOKEN=your_slack_bot_token
@@ -26,10 +42,10 @@ This Slack bot is designed to assist users in a Slack workspace by responding to
     OPENAI_API_KEY=your_openai_api_key
     ```
 
-3. **Running the Bot**: Use the provided `Procfile` for deployment or run the bot locally.
+5. **Run the Bot**: Finally, start the bot using the command below. You can also deploy the bot using the provided `Procfile`.
 
     ```bash
-    uvicorn app.main:app --host=0.0.0.0 --port=8000
+    python -m app.main
     ```
 
 ## Usage
