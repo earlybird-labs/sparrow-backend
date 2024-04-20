@@ -13,31 +13,16 @@ from .config import SLACK_USER_TOKEN
 from .blocks.index import bug_form
 
 
-def handle_message_with_file(client, say, event, message, bot_id, addt_messages=None):
-    file_data, speech_mode = handle_file_upload(client, message)
+def handle_message_with_file(
+    client, say, event, message, bot_id, additional_messages=None
+):
+    file_data, speech_mode = process_file_upload(client, message)
 
-    print(file_data)
+    user_message = format_user_message(message, bot_id, file_data)
 
-    file_data_json = json.dumps(file_data)
+    all_messages = compile_messages(additional_messages, user_message)
 
-    user_message = message.get("text").replace(f"<@{bot_id}>", "")
-
-    user_message += "Attachments: " + file_data_json
-
-    all_messages = []
-
-    if addt_messages:
-        all_messages.extend(addt_messages)
-
-    all_messages.append({"role": "user", "content": user_message})
-
-    response = llm_response(all_messages)
-
-    if speech_mode:
-        create_speech(response.ai_response)
-        handle_speak(client, message)
-    else:
-        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+    process_response(llm_response(all_messages), speech_mode, client, say, event)
 
 
 def handle_message(ack, client, event, message, say):
@@ -46,199 +31,129 @@ def handle_message(ack, client, event, message, say):
     bot_id = client.auth_test()["user_id"]
 
     if message.get("subtype") != "message_deleted":
-
         if bot_id in message.get("text"):
-
-            if message.get("files"):
-                handle_message_with_file(client, say, event, message, bot_id)
-            else:
-                response = llm_response(
-                    [{"role": "user", "content": message.get("text")}]
-                )
-                if response.bug:
-
-                    blocks = [
-                        {
-                            "type": "section",
-                            "text": {
-                                "type": "mrkdwn",
-                                "text": response.ai_response,
-                            },
-                        }
-                    ] + bug_form
-
-                    safe_say(
-                        say,
-                        text=response.ai_response,
-                        blocks=blocks,
-                        thread_ts=event["ts"],
-                    )
-                else:
-                    safe_say(say, text=response.ai_response, thread_ts=event["ts"])
-
-        if message.get("thread_ts"):
-
-            formatted_messages = fetch_and_format_thread_messages(client, message)
-
-            if is_bot_thread(client, formatted_messages):
-                if message.get("files"):
-                    handle_message_with_file(
-                        client, say, event, message, bot_id, formatted_messages
-                    )
-                else:
-                    response = llm_response(formatted_messages)
-                    if response.bug:
-
-                        blocks = [
-                            {
-                                "type": "section",
-                                "text": {
-                                    "type": "mrkdwn",
-                                    "text": response.ai_response,
-                                },
-                            }
-                        ] + bug_form
-
-                        safe_say(
-                            say,
-                            text=response.ai_response,
-                            blocks=blocks,
-                            thread_ts=event["ts"],
-                        )
-                    else:
-                        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
-    else:
-        print("No message")
+            process_direct_message(client, say, event, message, bot_id)
+        elif message.get("thread_ts"):
+            process_thread_message(client, say, event, message, bot_id)
 
 
-def handle_file_upload(client, message):
+def process_file_upload(client, message):
     files = message.get("files")
-
     file_data = []
-
     speech_mode = False
 
     for file in files:
-        file_id = file.get("id")
-        file_url, file_type, mimetype = handle_file_sharing(client, file_id)
-
-        if file_type in ["jpg", "jpeg", "png", "webp", "gif"]:
-            image_description = describe_vision_anthropic(
-                file_url=file_url,
-                image_media_type=mimetype,
-                message=message.get("text"),
-            )
-            file_data.append({"upload_type": "image", "content": image_description})
-        elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:
-            print("Transcribing audio")
-            transcription = transcribe_audio(file_url, file_type)
-            file_data.append({"upload_type": "audio", "content": transcription})
-            speech_mode = True
-
-        else:
-            logging.error(f"Unsupported file type: {file_type}")
-
-        handle_file_revoke(client, file_id)
+        file_url, file_type, mimetype = share_file_and_get_url(client, file.get("id"))
+        file_data.append(process_file_content(file_url, file_type, mimetype, message))
+        speech_mode |= file_type in ["webm", "mp4", "mp3", "wav", "m4a"]
+        revoke_file_public_access(client, file.get("id"))
 
     return file_data, speech_mode
 
 
-def handle_file_revoke(client, file_id):
-    client.files_revokePublicURL(token=SLACK_USER_TOKEN, file=file_id)
-
-
-def handle_file_sharing(client, file_id):
+def share_file_and_get_url(client, file_id):
     file_info = client.files_info(file=file_id).data.get("file")
-    file_type = file_info.get("filetype")
-    mimetype = file_info.get("mimetype")
-
     client.files_sharedPublicURL(token=SLACK_USER_TOKEN, file=file_id)
+    return (
+        construct_file_url(file_info),
+        file_info.get("filetype"),
+        file_info.get("mimetype"),
+    )
 
+
+def construct_file_url(file_info):
     public_link = file_info.get("permalink_public")
     url_private = file_info.get("url_private")
     pub_secret = public_link.split("-")[-1]
-    file_url = f"{url_private}?pub_secret={pub_secret}"
-
-    return file_url, file_type, mimetype
+    return f"{url_private}?pub_secret={pub_secret}"
 
 
-def handle_speak(client, message):
+def process_file_content(file_url, file_type, mimetype, message):
+    if file_type in ["jpg", "jpeg", "png", "webp", "gif"]:
+        return {
+            "upload_type": "image",
+            "content": describe_vision_anthropic(
+                file_url, mimetype, message.get("text")
+            ),
+        }
+    elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:
+        logging.info("Transcribing audio")
+        return {
+            "upload_type": "audio",
+            "content": transcribe_audio(file_url, file_type),
+        }
+    else:
+        logging.error(f"Unsupported file type: {file_type}")
+        return None
+
+
+def revoke_file_public_access(client, file_id):
+    client.files_revokePublicURL(token=SLACK_USER_TOKEN, file=file_id)
+
+
+def format_user_message(message, bot_id, file_data):
+    user_message = message.get("text").replace(f"<@{bot_id}>", "")
+    if file_data:
+        user_message += " Attachments: " + json.dumps(file_data)
+    return user_message
+
+
+def compile_messages(additional_messages, user_message):
+    all_messages = additional_messages if additional_messages else []
+    all_messages.append({"role": "user", "content": user_message})
+    return all_messages
+
+
+def process_response(response, speech_mode, client, say, event):
+    if speech_mode:
+        create_speech(response.ai_response)
+        handle_speak(client, event["channel"], thread_ts=event["ts"])
+    else:
+        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+
+
+def process_direct_message(client, say, event, message, bot_id):
+    if message.get("files"):
+        handle_message_with_file(client, say, event, message, bot_id)
+    else:
+        response = llm_response([{"role": "user", "content": message.get("text")}])
+        process_bug_response(response, say, event)
+
+
+def process_thread_message(client, say, event, message, bot_id):
+    if message.get("thread_ts"):
+        formatted_messages = fetch_and_format_thread_messages(client, message)
+        if is_bot_thread(client, formatted_messages):
+            if message.get("files"):
+                handle_message_with_file(
+                    client, say, event, message, bot_id, formatted_messages
+                )
+            else:
+                response = llm_response(formatted_messages)
+                process_bug_response(response, say, event)
+
+
+def process_bug_response(response, say, event):
+    if response.bug:
+        say(blocks=bug_form(), thread_ts=event["ts"])
+    else:
+        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+
+
+def handle_speak(client, channel, thread_ts=None):
     try:
-
         file_path = "app/tmp/speech.mp3"
-        channel = message["channel"]
-        result = client.files_upload(
-            channels=channel,
-            file=file_path,
-            title="Sparrow's Voice Response",
-            filetype="mp3",
-        )
+        upload_kwargs = {
+            "channels": channel,
+            "file": file_path,
+            "title": "Sparrow's Response",
+        }
+        if thread_ts:
+            upload_kwargs["thread_ts"] = thread_ts
+
+        result = client.files_upload_v2(**upload_kwargs)
         # file_id = result["file"]["id"]
         # Optionally, send a message about the uploaded file
-        # client.say(text=f"Uploaded an MP3 file: <@{file_id}>")
+        # client.say(text=f"Uploaded an MP3 file: <@{file_id}>", thread_ts=thread_ts)
     except Exception as e:
         print(f"Error uploading file: {str(e)}")
-
-
-def handle_app_mention(ack, event, say):
-    ack()
-    pass
-    # try:
-    #     response = llm_response([{"role": "user", "content": event["text"]}])
-    #     safe_say(say, text=response.ai_response, thread_ts=event["ts"])
-    # except Exception as e:
-    #     logging.error(f"Error responding to app mention: {e}")
-
-
-def handle_open_modal(ack, body, client):
-    # Acknowledge the command request
-    ack()
-    # Call views_open with the built-in client
-    client.views_open(
-        # Pass a valid trigger_id within 3 seconds of receiving it
-        trigger_id=body["trigger_id"],
-        # View payload
-        view={
-            "type": "modal",
-            # View identifier
-            "callback_id": "view_1",
-            "title": {"type": "plain_text", "text": "Sparrow"},
-            "submit": {"type": "plain_text", "text": "Submit"},
-            "blocks": [
-                {
-                    "type": "input",
-                    "block_id": "input_c",
-                    "label": {
-                        "type": "plain_text",
-                        "text": "What are your hopes and dreams?",
-                    },
-                    "element": {
-                        "type": "plain_text_input",
-                        "action_id": "dreamy_input",
-                        "multiline": True,
-                    },
-                },
-            ],
-        },
-    )
-
-
-def generate_response(prompt):
-    """
-    Generates a response from the Llama2 model for a given prompt.
-
-    Args:
-        prompt (str): The input prompt to generate a response for.
-
-    Returns:
-        str: The generated response from the model.
-    """
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={"model": "dolphin", "prompt": prompt, "stream": False},
-    )
-    if response.status_code == 200:
-        return response.json()["response"]
-        # return "For sure"
-    else:
-        raise Exception(f"Failed to generate response: {response.text}")
