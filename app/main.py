@@ -11,6 +11,8 @@ from .handlers import (
 )
 from .utils import safe_say
 
+print(SLACK_BOT_TOKEN)
+print(SLACK_SIGNING_SECRET)
 
 app = App(
     token=SLACK_BOT_TOKEN,
