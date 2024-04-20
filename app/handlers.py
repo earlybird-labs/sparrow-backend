@@ -2,9 +2,42 @@ import logging
 import requests
 import json
 
-from .llm import llm_response, describe_vision_anthropic, transcribe_audio
+from .llm import (
+    llm_response,
+    describe_vision_anthropic,
+    transcribe_audio,
+    create_speech,
+)
 from .utils import safe_say, fetch_and_format_thread_messages, is_bot_thread
 from .config import SLACK_USER_TOKEN
+from .blocks.index import bug_form
+
+
+def handle_message_with_file(client, say, event, message, bot_id, addt_messages=None):
+    file_data, speech_mode = handle_file_upload(client, message)
+
+    print(file_data)
+
+    file_data_json = json.dumps(file_data)
+
+    user_message = message.get("text").replace(f"<@{bot_id}>", "")
+
+    user_message += "Attachments: " + file_data_json
+
+    all_messages = []
+
+    if addt_messages:
+        all_messages.extend(addt_messages)
+
+    all_messages.append({"role": "user", "content": user_message})
+
+    response = llm_response(all_messages)
+
+    if speech_mode:
+        create_speech(response.ai_response)
+        handle_speak(client, message)
+    else:
+        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
 
 
 def handle_message(ack, client, event, message, say):
@@ -12,40 +45,78 @@ def handle_message(ack, client, event, message, say):
 
     bot_id = client.auth_test()["user_id"]
 
-    if message.get("text") == "speak":
-        handle_speak(client, message)
+    if message.get("subtype") != "message_deleted":
 
-    print(message)
+        if bot_id in message.get("text"):
 
-    if bot_id in message.get("text"):
-        if message.get("files"):
-            file_data = handle_file_upload(client, message)
+            if message.get("files"):
+                handle_message_with_file(client, say, event, message, bot_id)
+            else:
+                response = llm_response(
+                    [{"role": "user", "content": message.get("text")}]
+                )
+                if response.bug:
 
-            print(file_data)
+                    blocks = [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": response.ai_response,
+                            },
+                        }
+                    ] + bug_form
 
-            file_data_json = json.dumps(file_data)
+                    safe_say(
+                        say,
+                        text=response.ai_response,
+                        blocks=blocks,
+                        thread_ts=event["ts"],
+                    )
+                else:
+                    safe_say(say, text=response.ai_response, thread_ts=event["ts"])
 
-            user_message = message.get("text").replace(f"<@{bot_id}>", "")
+        if message.get("thread_ts"):
 
-            user_message += "Attachments: " + file_data_json
+            formatted_messages = fetch_and_format_thread_messages(client, message)
 
-            response = llm_response([{"role": "user", "content": user_message}])
+            if is_bot_thread(client, formatted_messages):
+                if message.get("files"):
+                    handle_message_with_file(
+                        client, say, event, message, bot_id, formatted_messages
+                    )
+                else:
+                    response = llm_response(formatted_messages)
+                    if response.bug:
 
-            safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+                        blocks = [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": response.ai_response,
+                                },
+                            }
+                        ] + bug_form
 
-    if message.get("thread_ts"):
-
-        formatted_messages = fetch_and_format_thread_messages(client, message)
-
-        if is_bot_thread(client, formatted_messages):
-            response = llm_response(formatted_messages)
-            safe_say(say, text=response.ai_response, thread_ts=message["thread_ts"])
+                        safe_say(
+                            say,
+                            text=response.ai_response,
+                            blocks=blocks,
+                            thread_ts=event["ts"],
+                        )
+                    else:
+                        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+    else:
+        print("No message")
 
 
 def handle_file_upload(client, message):
     files = message.get("files")
 
     file_data = []
+
+    speech_mode = False
 
     for file in files:
         file_id = file.get("id")
@@ -59,15 +130,17 @@ def handle_file_upload(client, message):
             )
             file_data.append({"upload_type": "image", "content": image_description})
         elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:
-            transcription = transcribe_audio(file_url)
+            print("Transcribing audio")
+            transcription = transcribe_audio(file_url, file_type)
             file_data.append({"upload_type": "audio", "content": transcription})
+            speech_mode = True
 
         else:
             logging.error(f"Unsupported file type: {file_type}")
 
         handle_file_revoke(client, file_id)
 
-    return file_data
+    return file_data, speech_mode
 
 
 def handle_file_revoke(client, file_id):
@@ -91,13 +164,16 @@ def handle_file_sharing(client, file_id):
 
 def handle_speak(client, message):
     try:
-        # Assuming speech_file_path is accessible here and contains the path to the MP3 file
+
         file_path = "app/tmp/speech.mp3"
-        channels = message["channel"]
+        channel = message["channel"]
         result = client.files_upload(
-            channels=channels, file=file_path, title="Speech File", filetype="mp3"
+            channels=channel,
+            file=file_path,
+            title="Sparrow's Voice Response",
+            filetype="mp3",
         )
-        file_id = result["file"]["id"]
+        # file_id = result["file"]["id"]
         # Optionally, send a message about the uploaded file
         # client.say(text=f"Uploaded an MP3 file: <@{file_id}>")
     except Exception as e:
