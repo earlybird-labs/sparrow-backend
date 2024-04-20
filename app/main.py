@@ -11,10 +11,6 @@ from .handlers import (
     handle_app_mention,
     # handle_file_shared,
 )
-from .utils import safe_say
-
-print(SLACK_BOT_TOKEN)
-print(SLACK_SIGNING_SECRET)
 
 app = App(
     token=SLACK_BOT_TOKEN,
@@ -32,6 +28,6 @@ app.event("message")(handle_message)
 app.event("app_mention")(handle_app_mention)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 30000))
+    port = int(os.environ.get("PORT", 8000))
     print(f"Starting app on port {port}")
     app.start(port=port)
