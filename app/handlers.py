@@ -12,7 +12,6 @@ from .llm import (
 )
 from .utils import safe_say, fetch_and_format_thread_messages, is_bot_thread
 from .config import SLACK_USER_TOKEN
-from .blocks.index import bug_form
 from .workflows.forms.onboard import create_onboarding_message, create_onboarding_modal
 
 
