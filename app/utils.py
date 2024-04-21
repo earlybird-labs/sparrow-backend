@@ -107,7 +107,7 @@ def save_audio_file(file_url, file_type):
     filename = f"{int(time.time())}.{file_type}"
 
     # Define the path where the file will be saved (ensure the app/tmp directory exists)
-    file_path = os.path.join("app", "tmp", filename)
+    file_path = os.path.join("tmp", filename)
 
     # Save the file content to the specified path
     with open(file_path, "wb") as file:

@@ -1,6 +1,7 @@
 import logging
 import requests
 import json
+import os
 
 from .llm import (
     llm_response,
@@ -25,10 +26,23 @@ def handle_message_with_file(
     process_response(llm_response(all_messages), speech_mode, client, say, event)
 
 
+def handle_command(ack, say, command, client):
+    # Acknowledge the command request
+    ack()
+    # Respond back with the text received in the command, only visible to the user
+    client.chat_postEphemeral(
+        channel=command["channel_id"],
+        user=command["user_id"],
+        text="Commands not yet implemented",
+    )
+
+
 def handle_message(ack, client, event, message, say):
     ack()
 
     bot_id = client.auth_test()["user_id"]
+
+    print(event)
 
     if message.get("subtype") != "message_deleted":
         if bot_id in message.get("text"):
@@ -142,7 +156,8 @@ def process_bug_response(response, say, event):
 
 def handle_speak(client, channel, thread_ts=None):
     try:
-        file_path = "app/tmp/speech.mp3"
+        file_path = "tmp/speech.mp3"
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         upload_kwargs = {
             "channels": channel,
             "file": file_path,
