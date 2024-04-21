@@ -88,8 +88,9 @@ def handle_message_with_file(
         client.chat_update(
             token=SLACK_USER_TOKEN,
             channel=message["channel"],
+            text=transcription,
             ts=message["ts"],
-            metadata={"transcription": transcription},
+            # metadata={"transcription": transcription},
         )
 
     process_response(response, speech_mode, client, say, event)

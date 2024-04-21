@@ -1,7 +1,7 @@
 from simple_lm import SimpleLM
 from instructor import Mode
 
-from .config import TOGETHER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
+from .config import TOGETHER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, LOCAL_LLM
 from .models import AIResponse
 from .prompts import sparrow_system_prompt
 from .utils import get_file_data, save_audio_file, delete_file
@@ -110,9 +110,13 @@ def describe_image(file_url):
 
 def ollama_response(message):
 
-    data = {"model": "dolphin", "prompt": message}
+    print(message)
+
+    data = {"model": "dolphin", "prompt": message["content"], "stream": False}
     response = requests.post("http://localhost:11434/api/generate", json=data)
     response_data = response.json()
+
+    print(response_data)
 
     ai_response = AIResponse(
         ai_response=response_data["response"],
@@ -127,16 +131,21 @@ def llm_response(messages, client_name="ollama"):
     client = simple_lm.get_client(client_name)
     model = simple_lm.get_model(client_name)
 
-    messages = [
-        {"role": "system", "content": sparrow_system_prompt},
-        *messages,
-    ]
+    if LOCAL_LLM:
+        message = {"role": "user", "content": messages[-1]["content"]}
 
-    response = client.create(
-        model=model,
-        messages=messages,
-        response_model=AIResponse,
-    )
+        response = ollama_response(message)
+    else:
+        messages = [
+            {"role": "system", "content": sparrow_system_prompt},
+            *messages,
+        ]
+
+        response = client.create(
+            model=model,
+            messages=messages,
+            response_model=AIResponse,
+        )
 
     print(response)
 
