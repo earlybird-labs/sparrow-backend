@@ -1,40 +1,18 @@
 import logging
-import requests
 import json
 import os
+from pprint import pprint
 
 from .llm import (
     llm_response,
     describe_vision_anthropic,
     transcribe_audio,
     create_speech,
+    ollama_response,
 )
 from .utils import safe_say, fetch_and_format_thread_messages, is_bot_thread
 from .config import SLACK_USER_TOKEN
 from .blocks.index import bug_form
-
-
-def handle_message_with_file(
-    client, say, event, message, bot_id, additional_messages=None
-):
-    file_data, speech_mode = process_file_upload(client, message)
-
-    user_message = format_user_message(message, bot_id, file_data)
-
-    all_messages = compile_messages(additional_messages, user_message)
-
-    process_response(llm_response(all_messages), speech_mode, client, say, event)
-
-
-def handle_command(ack, say, command, client):
-    # Acknowledge the command request
-    ack()
-    # Respond back with the text received in the command, only visible to the user
-    client.chat_postEphemeral(
-        channel=command["channel_id"],
-        user=command["user_id"],
-        text="Commands not yet implemented",
-    )
 
 
 def handle_message(ack, client, event, message, say):
@@ -44,11 +22,77 @@ def handle_message(ack, client, event, message, say):
 
     print(event)
 
-    if message.get("subtype") != "message_deleted":
+    ignore_list = ["message_deleted", "message_changed"]
+
+    if event.get("subtype") not in ignore_list:
         if bot_id in message.get("text"):
-            process_direct_message(client, say, event, message, bot_id)
+            logging.info("Handling direct message")
+            handle_direct_message(client, say, event, message, bot_id)
         elif message.get("thread_ts"):
-            process_thread_message(client, say, event, message, bot_id)
+            logging.info("Handling thread message")
+            handle_thread_message(client, say, event, message, bot_id)
+
+
+def handle_direct_message(client, say, event, message, bot_id):
+    if message.get("files"):
+        logging.info("Handling direct message with file")
+        handle_message_with_file(client, say, event, message, bot_id)
+    else:
+        logging.info("Handling direct message without file")
+        user_message = format_user_message(message, bot_id)
+        response = llm_response([{"role": "user", "content": user_message}])
+        process_response(response, False, client, say, event)
+
+
+def handle_thread_message(client, say, event, message, bot_id):
+    formatted_messages = fetch_and_format_thread_messages(client, message)
+    pprint(formatted_messages, indent=2)
+    if is_bot_thread(client, formatted_messages):
+        if message.get("files"):
+            logging.info("Handling thread message with file")
+            handle_message_with_file(
+                client, say, event, message, bot_id, formatted_messages
+            )
+        else:
+            logging.info("Handling thread message without file")
+            response = llm_response(formatted_messages)
+            process_response(response, False, client, say, event)
+
+
+def handle_message_with_file(
+    client, say, event, message, bot_id, additional_messages=None
+):
+    file_data, speech_mode = process_file_upload(client, message)
+
+    print("message", message)
+
+    user_message = format_user_message(message, bot_id, file_data)
+    print("user_message", user_message)
+
+    all_messages = compile_messages(additional_messages, user_message)
+    print("all_messages", all_messages)
+
+    response = llm_response(all_messages)
+
+    transcription = None
+
+    for file in file_data:
+        if file["upload_type"] == "audio":
+            if transcription:
+                transcription += "\n" + file["content"]
+            else:
+                transcription = file["content"]
+
+    if transcription:
+
+        client.chat_update(
+            token=SLACK_USER_TOKEN,
+            channel=message["channel"],
+            ts=message["ts"],
+            metadata={"transcription": transcription},
+        )
+
+    process_response(response, speech_mode, client, say, event)
 
 
 def process_file_upload(client, message):
@@ -105,10 +149,10 @@ def revoke_file_public_access(client, file_id):
     client.files_revokePublicURL(token=SLACK_USER_TOKEN, file=file_id)
 
 
-def format_user_message(message, bot_id, file_data):
+def format_user_message(message, bot_id, file_data=None):
     user_message = message.get("text").replace(f"<@{bot_id}>", "")
     if file_data:
-        user_message += " Attachments: " + json.dumps(file_data)
+        user_message += "\nUser uploaded file contents:\n" + json.dumps(file_data)
     return user_message
 
 
@@ -119,42 +163,19 @@ def compile_messages(additional_messages, user_message):
 
 
 def process_response(response, speech_mode, client, say, event):
-    if speech_mode:
-        create_speech(response.ai_response)
-        handle_speak(client, event["channel"], thread_ts=event["ts"])
-    else:
-        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
-
-
-def process_direct_message(client, say, event, message, bot_id):
-    if message.get("files"):
-        handle_message_with_file(client, say, event, message, bot_id)
-    else:
-        response = llm_response([{"role": "user", "content": message.get("text")}])
-        process_bug_response(response, say, event)
-
-
-def process_thread_message(client, say, event, message, bot_id):
-    if message.get("thread_ts"):
-        formatted_messages = fetch_and_format_thread_messages(client, message)
-        if is_bot_thread(client, formatted_messages):
-            if message.get("files"):
-                handle_message_with_file(
-                    client, say, event, message, bot_id, formatted_messages
-                )
-            else:
-                response = llm_response(formatted_messages)
-                process_bug_response(response, say, event)
-
-
-def process_bug_response(response, say, event):
     if response.bug:
-        say(blocks=bug_form(), thread_ts=event["ts"])
+        safe_say(say, blocks=bug_form(), thread_ts=event["ts"])
     else:
-        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+        if speech_mode:
+            create_speech(response.ai_response)
+            handle_speak(
+                client, event["channel"], response.ai_response, thread_ts=event["ts"]
+            )
+        else:
+            safe_say(say, text=response.ai_response, thread_ts=event["ts"])
 
 
-def handle_speak(client, channel, thread_ts=None):
+def handle_speak(client, channel, ai_response, thread_ts=None):
     try:
         file_path = "tmp/speech.mp3"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -162,13 +183,11 @@ def handle_speak(client, channel, thread_ts=None):
             "channels": channel,
             "file": file_path,
             "title": "Sparrow's Response",
+            "initial_comment": ai_response,
         }
         if thread_ts:
             upload_kwargs["thread_ts"] = thread_ts
 
         result = client.files_upload_v2(**upload_kwargs)
-        # file_id = result["file"]["id"]
-        # Optionally, send a message about the uploaded file
-        # client.say(text=f"Uploaded an MP3 file: <@{file_id}>", thread_ts=thread_ts)
     except Exception as e:
-        print(f"Error uploading file: {str(e)}")
+        logging.error(f"Error uploading file: {str(e)}")

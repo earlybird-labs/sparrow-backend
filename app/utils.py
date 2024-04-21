@@ -57,7 +57,7 @@ def safe_say(say, *args, **kwargs):
         say(*args, **kwargs)
     except SlackApiError as e:
         # Handle the SlackApiError
-        print(f"Slack API Error: {e}")
+        logging.error(f"Slack API Error: {e}")
 
 
 def format_markdown_to_slack_markdown(text):
