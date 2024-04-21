@@ -1,188 +1,63 @@
-# Slack Bot for Bug Reporting and Assistance
+# Sparrow Slack Bot
 
 This Slack bot is designed to assist users in a Slack workspace by responding to messages, opening modals for input, and handling bug reports. It leverages the Slack Bolt framework for Python and integrates with language models for generating responses.
 
 ## Features
 
-- **Message Handling**: Responds to messages in threads where the bot is mentioned.
-- **Modal Interaction**: Opens a modal for user input upon specific actions.
-- **Bug Reporting**: Provides a structured form for reporting bugs, including issue name, description, and urgency.
-- **AI Integration**: Utilizes language models to generate conversational and helpful responses.
+- **Message Handling**: Responds to direct messages and messages in threads, including those with file attachments.
+- **Modal Interaction**: Opens modals for user input and handles submissions.
+- **AI Integration**: Utilizes language models for generating conversational responses and processing images and audio files.
 
 ## Setup Instructions
 
-Follow these steps to set up the Slack bot on your local machine:
-
-1. **Clone the Repository**: Start by cloning the repository to your local machine.
-
+1. **Clone the Repository**:
     ```bash
     git clone https://github.com/earlybird-labs/sparrow-backend.git
     cd sparrow-backend
     ```
 
-2. **Create a Virtual Environment**: Set up a Python virtual environment for project dependencies.
-
+2. **Create a Virtual Environment**:
     ```bash
     python3 -m venv env
     source env/bin/activate
     ```
 
-3. **Install Dependencies**: Install the required Python packages specified in `requirements.txt`.
-
+3. **Install Dependencies**:
     ```bash
     pip install -r requirements.txt
     ```
 
-4. **Configure Environment Variables**: Create a `.env` file in the root directory and populate it with the necessary environment variables.
-
+4. **Configure Environment Variables**: Populate a `.env` file with necessary keys.
     ```plaintext
     SLACK_BOT_TOKEN=your_slack_bot_token
     SLACK_SIGNING_SECRET=your_slack_signing_secret
     TOGETHER_API_KEY=your_together_api_key
     OPENAI_API_KEY=your_openai_api_key
+    ANTHROPIC_API_KEY=your_anthropic_api_key
     ```
 
-5. **Run the Bot**: Finally, start the bot using the command below.
-
+5. **Run the Bot**:
     ```bash
     python -m app.main
     ```
 
 ## Usage
 
-- **Responding to Mentions**: The bot responds to mentions in channels with helpful information or actions.
-- **Opening Modals**: Triggered by specific actions (e.g., shortcuts), the bot can open modals for user input.
-- **Bug Reporting**: Users can report bugs through a structured form that the bot provides in response to certain triggers.
+- **Responding to Direct Messages**: Handles direct messages, including those with file attachments.
+- **Responding to Thread Messages**: Handles messages in threads, including those with file attachments.
+- **Opening and Handling Modals**: Opens modals for user input and processes the input upon submission.
 
 ## Code Highlights
 
-- **Bug Form JSON**: The structure of the bug reporting form is defined in `app/blocks/bug_form.json`.
-- **Event Handling**: The bot listens for messages and app mentions, handling them in `app/main.py`.
-
-    
-```25:62:app/main.py
-@app.event("message")
-def handle_thread_messages(ack, client, message, say):
-    # Acknowledge the event first
-    ack()
-
-    # Check if the message is in a thread by looking for thread_ts
-    if message.get("thread_ts"):
-        # Fetch the parent message of the thread
-        parent_message = client.conversations_replies(
-            channel=message["channel"], ts=message["thread_ts"], limit=1
-        )
-
-        bot_id = client.auth_test()["user_id"]
-        first_message_text = parent_message["messages"][0]["text"]
-
-        # Check if the bot is mentioned in the parent message text
-        if f"<@{bot_id}>" in first_message_text:
-            # Fetch all messages from the thread and convert them to the required format
-            thread_messages = client.conversations_replies(
-                channel=message["channel"], ts=message["thread_ts"]
-            )["messages"]
-
-            print(thread_messages)
-
-            # Initialize an empty list to hold the formatted messages
-            formatted_messages = []
-
-            # Loop through each message in the thread
-            for msg in thread_messages:
-                # Determine the role based on the user who sent the message
-                role = "assistant" if msg.get("user") == bot_id else "user"
-                # Append the formatted message to the list
-                formatted_messages.append({"role": role, "content": msg["text"]})
-
-            print(formatted_messages)
-
-            response = llm_response(formatted_messages)
-            safe_say(say, text=response.ai_response, thread_ts=message["thread_ts"])
-```
-
-
-    
-```65:77:app/main.py
-@app.event("app_mention")
-def respond_to_mention(ack, event, say):
-    ack()
-    try:
-        # Post a message in response to the app mention in a thread
-        message = event["text"]
-        user_message = {"role": "user", "content": message}
-        response = llm_response([user_message])
-
-        # Extract the timestamp of the original message to use as thread_ts
-        thread_ts = event["ts"]
-
-        safe_say(say, text=response.ai_response, thread_ts=thread_ts)
-```
-
-
-- **Modal Handling**: Modals are opened through actions defined in `app/handlers.py`.
-
-    
-```4:34:app/handlers.py
-def handle_open_modal(ack, body, client):
-    # Acknowledge the command request
-    ack()
-    # Call views_open with the built-in client
-    client.views_open(
-        # Pass a valid trigger_id within 3 seconds of receiving it
-        trigger_id=body["trigger_id"],
-        # View payload
-        view={
-            "type": "modal",
-            # View identifier
-            "callback_id": "view_1",
-            "title": {"type": "plain_text", "text": "Sparrow"},
-            "submit": {"type": "plain_text", "text": "Submit"},
-            "blocks": [
-                {
-                    "type": "input",
-                    "block_id": "input_c",
-                    "label": {
-                        "type": "plain_text",
-                        "text": "What are your hopes and dreams?",
-                    },
-                    "element": {
-                        "type": "plain_text_input",
-                        "action_id": "dreamy_input",
-                        "multiline": True,
-                    },
-                },
-            ],
-        },
-    )
-```
-
-
-- **AI Response Generation**: The bot generates responses using language models in `app/llm.py`.
-
-    
-```21:33:app/llm.py
-def llm_response(messages):
-
-    messages = [
-        {"role": "system", "content": sparrow_system_prompt},
-        *messages,
-    ]
-
-    response = openai.create(
-        model="gpt-4-turbo-preview",
-        messages=messages,
-        response_model=AIResponse,
-    )
-    return response
-```
-
+- **AI Response Generation**: Generates responses using language models. See `app/llm.py`.
+- **File Handling**: Processes file attachments in messages, including image and audio files. See `app/handlers.py`.
+- **Modal Handling**: Opens modals and handles submissions. See `app/handlers.py`.
 
 ## Contributing
 
-Contributions to improve the bot or add new features are welcome. Please follow the existing code structure and maintain clean, efficient, and well-commented code.
+Contributions are welcome. Please maintain clean, efficient, and well-commented code.
 
 ## License
 
-[MIT License](https://choosealicense.com/licenses/mit/)
+[Apache 2.0](LICENSE)
 
