@@ -13,6 +13,7 @@ from .llm import (
 from .utils import safe_say, fetch_and_format_thread_messages, is_bot_thread
 from .config import SLACK_USER_TOKEN
 from .blocks.index import bug_form
+from .workflows.forms.onboard import create_onboarding_message, create_onboarding_modal
 
 
 def handle_message(ack, client, event, message, say):
@@ -94,6 +95,33 @@ def handle_message_with_file(
         )
 
     process_response(response, speech_mode, client, say, event)
+
+
+def handle_onboard(ack, client, respond, command):
+    ack()
+
+    channel_id = command.get("channel_id")
+
+    onboarding_message = create_onboarding_message()
+    pprint(onboarding_message)
+    # respond(onboarding_message)
+    client.chat_postMessage(channel=channel_id, blocks=onboarding_message["blocks"])
+
+
+def handle_onboarding_modal_open(ack, body, client):
+    ack()
+    # Call views_open with the built-in client
+    client.views_open(
+        trigger_id=body["trigger_id"],
+        # Pass the view payload
+        view=create_onboarding_modal(),
+    )
+
+
+def handle_onboarding_modal_submit(ack, body, view):
+    ack()
+    pprint(body)
+    pprint(view)
 
 
 def process_file_upload(client, message):
