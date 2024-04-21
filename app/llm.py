@@ -9,6 +9,9 @@ from .utils import get_file_data, save_audio_file, delete_file
 from openai import OpenAI
 from anthropic import Anthropic
 
+import requests
+import json
+
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -18,6 +21,10 @@ simple_lm.setup_client(client_name="openai", api_key=OPENAI_API_KEY)
 simple_lm.setup_client(
     client_name="together",
     api_key=TOGETHER_API_KEY,
+)
+simple_lm.setup_client(
+    client_name="ollama",
+    api_key="test",
 )
 
 simple_lm.set_model("openai", "gpt-4-turbo")
@@ -37,7 +44,7 @@ def transcribe_audio(file_url, file_type):
 
 
 def create_speech(text):
-    speech_file_path = "app/tmp/speech.mp3"
+    speech_file_path = "tmp/speech.mp3"
     response = openai_client.audio.speech.create(
         model="tts-1", voice="alloy", input=text
     )
@@ -101,7 +108,21 @@ def describe_image(file_url):
     return response.choices[0].message.content
 
 
-def llm_response(messages, client_name="openai"):
+def ollama_response(message):
+
+    data = {"model": "dolphin", "prompt": message}
+    response = requests.post("http://localhost:11434/api/generate", json=data)
+    response_data = response.json()
+
+    ai_response = AIResponse(
+        ai_response=response_data["response"],
+        bug=False,
+    )
+
+    return ai_response
+
+
+def llm_response(messages, client_name="ollama"):
 
     client = simple_lm.get_client(client_name)
     model = simple_lm.get_model(client_name)
@@ -116,6 +137,9 @@ def llm_response(messages, client_name="openai"):
         messages=messages,
         response_model=AIResponse,
     )
+
+    print(response)
+
     return response
 
 
