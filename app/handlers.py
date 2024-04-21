@@ -191,16 +191,13 @@ def compile_messages(additional_messages, user_message):
 
 
 def process_response(response, speech_mode, client, say, event):
-    if response.bug:
-        safe_say(say, blocks=bug_form(), thread_ts=event["ts"])
+    if speech_mode:
+        create_speech(response.ai_response)
+        handle_speak(
+            client, event["channel"], response.ai_response, thread_ts=event["ts"]
+        )
     else:
-        if speech_mode:
-            create_speech(response.ai_response)
-            handle_speak(
-                client, event["channel"], response.ai_response, thread_ts=event["ts"]
-            )
-        else:
-            safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
 
 
 def handle_speak(client, channel, ai_response, thread_ts=None):
