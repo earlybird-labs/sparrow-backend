@@ -8,6 +8,7 @@ from slack_sdk.errors import SlackApiError
 
 import os
 import time
+import re
 
 
 def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
@@ -57,6 +58,23 @@ def safe_say(say, *args, **kwargs):
     except SlackApiError as e:
         # Handle the SlackApiError
         print(f"Slack API Error: {e}")
+
+
+def format_markdown_to_slack_markdown(text):
+    """
+    Converts markdown syntax in a string to Slack's markdown syntax using regex.
+    It handles both italic and bold markdown syntax conversions.
+
+    :param text: The string containing markdown syntax for bold and italic.
+    :return: A string with markdown syntax converted to Slack's markdown format.
+    """
+    # Convert markdown italic syntax (*) to Slack's underscore italic (_)
+    text = re.sub(r"\*(.*?)\*", r"_\1_", text)
+
+    # Convert markdown bold syntax (**) to Slack's asterisk bold (*)
+    formatted_text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+
+    return formatted_text
 
 
 def is_bot_thread(client, messages):
