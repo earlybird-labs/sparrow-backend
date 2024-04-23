@@ -9,9 +9,17 @@ from .llm import (
     llm_response,
     create_title_from_transcript,
     format_response_in_markdown,
+    create_thread,
+    create_vectorstore,
+    modify_thread,
+    create_run,
+    run_steps,
+    retrieve_message,
+    add_message_to_thread,
 )
 from .models import RequestType, AIResponse
 from .helpers import process_file_upload, format_user_message
+from .services import create_db_thread, find_db_thread_by_id, find_db_thread
 from .utils import (
     fetch_and_format_thread_messages,
     safe_say,
@@ -22,6 +30,32 @@ from .logger import logger
 
 # Global dictionary to store context
 ephemeral_context = {}
+
+
+def get_thread_in_db(message, thread_ts, ts):
+    if not thread_ts:
+        thread_ts = ts
+
+    thread_id = find_db_thread(message.get("channel"), thread_ts)
+    print("OG thread_id", thread_id)
+    print("type(thread_id) at OG", type(thread_id))
+
+    if not thread_id:
+        oai_thread = create_thread()
+        vectorstore_id = create_vectorstore(str(thread_ts)).id
+        insert_result = create_db_thread(
+            message.get("channel"), thread_ts, oai_thread.id, vectorstore_id
+        )
+        thread_id = insert_result.inserted_id
+        pprint("if not thread_id")
+    else:
+        thread_id.get("_id")
+        pprint("else thread_id")
+
+    print("end of get_thread_in_db", type(thread_id))
+    if type(thread_id) == dict:
+        thread_id = thread_id["_id"]
+    return thread_id
 
 
 def handle_message(ack, client, event, message, say):
@@ -41,10 +75,11 @@ def handle_message(ack, client, event, message, say):
 
     if event.get("subtype") not in ignore_list:
         logger.info(f"event:\n{json.dumps(event, indent=4)}")
-        is_thread = message.get("thread_ts") is not None
         bot_mention = bot_id in message.get("text")
         has_files = message.get("files") is not None
         request_type = RequestType.conversation
+        thread_ts = message.get("thread_ts", None)
+        ts = message.get("ts", None)
 
         if not has_files:
             request_type = classify_user_request(event["text"])
@@ -57,22 +92,31 @@ def handle_message(ack, client, event, message, say):
                     RequestType.general_request,
                 )
                 and not bot_mention
-                and not is_thread
+                and thread_ts is None
             )
 
             if request_detected:
                 print("\n\nPM request\n\n")
+                thread_id = get_thread_in_db(message, thread_ts, ts)
                 handle_pm_request(client, say, event, message, bot_id)
+            elif request_type == RequestType.ai_conversation:
+                thread_id = get_thread_in_db(message, thread_ts, ts)
+                handle_direct_message(client, say, event, message, bot_id)
 
         if bot_mention:
             logger.info("Handling direct message")
-            handle_direct_message(client, say, event, message, bot_id)
-        elif is_thread:
+            thread_id = get_thread_in_db(message, thread_ts, ts)
+            handle_direct_message(client, say, event, message, bot_id, thread_id)
+        elif thread_ts is not None:
             if bot_already_in_thread(
                 client, message.get("thread_ts"), message.get("channel")
             ):
+                thread_id = get_thread_in_db(message, thread_ts, ts)
+                print(thread_id)
                 logger.info("Handling thread message")
-                handle_thread_message(client, say, event, message, bot_id, request_type)
+                handle_thread_message(
+                    client, say, event, message, bot_id, request_type, thread_id
+                )
 
 
 def handle_pm_request(client, say, event, message, bot_id):
@@ -181,7 +225,7 @@ def handle_sparrow(ack, client, respond, command):
     # response = agent.run(request)
 
 
-def handle_direct_message(client, say, event, message, bot_id):
+def handle_direct_message(client, say, event, message, bot_id, thread_id=None):
     """
     Handles direct messages to the bot, with or without file attachments.
 
@@ -193,7 +237,7 @@ def handle_direct_message(client, say, event, message, bot_id):
     """
     if message.get("files"):
         logger.info("Handling direct message with file")
-        handle_message_with_file(client, say, event, message, bot_id)
+        handle_message_with_file(client, say, event, message, bot_id, thread_id)
     else:
         logger.info("Handling direct message without file")
         user_message = format_user_message(message, bot_id)
@@ -202,7 +246,13 @@ def handle_direct_message(client, say, event, message, bot_id):
 
 
 def handle_thread_message(
-    client, say, event, message, bot_id, request_type=RequestType.bug_report
+    client,
+    say,
+    event,
+    message,
+    bot_id,
+    request_type=RequestType.bug_report,
+    thread_id=None,
 ):
     """
     Handles messages within a thread, determining if the bot should respond based on its previous involvement.
@@ -218,7 +268,14 @@ def handle_thread_message(
     if message.get("files"):
         logger.info("Handling thread message with file")
         handle_message_with_file(
-            client, say, event, message, bot_id, formatted_messages, request_type
+            client,
+            say,
+            event,
+            message,
+            bot_id,
+            formatted_messages,
+            request_type,
+            thread_id,
         )
     else:
         logger.info("Handling thread message without file")
@@ -235,6 +292,7 @@ def handle_message_with_file(
     bot_id,
     additional_messages=None,
     request_type=RequestType.conversation,
+    thread_id=None,
 ):
     """
     Processes messages that include file attachments, handling different types of uploads.
@@ -247,19 +305,53 @@ def handle_message_with_file(
     :param additional_messages: Additional messages related to the main message.
     :param request_type: Type of request identified in the message.
     """
-    file_data, speech_mode = process_file_upload(SLACK_USER_TOKEN, client, message)
-    user_message = format_user_message(message, bot_id, file_data)
+
+    print("thread_id in handle_message_with_file", thread_id)
+    print("type(thread_id) in handle_message_with_file", type(thread_id))
+    # loaded_thread_id = json.loads(thread_id)
+    # print("loaded_thread_id", loaded_thread_id)
+    # print("type(loaded_thread_id)", type(loaded_thread_id))
+    print("\n\n")
+
+    file_datas, speech_mode, vectorstore = process_file_upload(
+        SLACK_USER_TOKEN, client, message, thread_id
+    )
+
+    user_message = format_user_message(message, bot_id, file_datas)
     logger.info(f"user_message: {user_message}")
+
+    if vectorstore:
+        vectorstore_id = find_db_thread_by_id(thread_id).get("vectorstore_id")
+        print("vectorstore_id", vectorstore_id)
+        oai_thread = find_db_thread_by_id(thread_id)["oai_thread"]
+        modify_thread(oai_thread, [vectorstore_id])
+        print("modify_thread")
+
+        add_message_to_thread(oai_thread, user_message, "user")
+        print("add_message_to_thread")
+        run_id = create_run(oai_thread).id
+        print("create_run")
+        completed = False
+        while not completed:
+            steps = run_steps(oai_thread, run_id)
+            for step in steps:
+                if step.status == "completed":
+                    completed = True
+                    msg_id = step.step_details.message_creation.message_id
+                    result = retrieve_message(msg_id, oai_thread)
+                    break
+        user_message += "Document Search Results:\n" + result
+
     all_messages = compile_messages(additional_messages, user_message)
     logger.info(f"all_messages: {all_messages}")
     response = llm_response(all_messages, request_type=request_type)
     transcription = None
-    for file in file_data:
+    for file in file_datas:
         if file["upload_type"] == "audio":
             if transcription:
                 transcription += "\n" + file["content"]
-            else:
-                transcription = file["content"]
+        elif file["upload_type"] == "image":
+            transcription = file["content"]
     if transcription:
         client.chat_update(
             token=SLACK_USER_TOKEN,
@@ -268,21 +360,6 @@ def handle_message_with_file(
             ts=message["ts"],
         )
     process_response(response, speech_mode, client, say, event)
-
-
-def handle_onboard(ack, client, respond, command):
-    """
-    Initiates the onboarding process for new users or teams.
-
-    :param ack: Function to acknowledge the command.
-    :param client: Slack client for API interactions.
-    :param respond: Function to send onboarding messages.
-    :param command: Command details indicating the initiation of onboarding.
-    """
-    ack()
-    channel_id = command.get("channel_id")
-    onboarding_message = create_onboarding_message()
-    client.chat_postMessage(channel=channel_id, blocks=onboarding_message["blocks"])
 
 
 def bot_already_in_thread(client, thread_ts, channel_id):
