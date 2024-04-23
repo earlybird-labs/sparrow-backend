@@ -16,6 +16,10 @@ def create_db_thread(channel_id, ts, oai_thread, vectorstore_id=None):
     )
 
 
+def update_thread(thread_id, update_obj):
+    return db.threads.update_one({"_id": thread_id}, {"$set": update_obj})
+
+
 def find_db_thread(channel_id, ts):
     return db.threads.find_one({"channel_id": channel_id, "ts": ts})
 

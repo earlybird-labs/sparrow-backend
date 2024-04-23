@@ -9,7 +9,12 @@ from .llm import (
     add_file_to_vectorstore,
     get_vectorstore,
 )
-from .services import add_vectorstore_id_to_thread, find_db_thread, find_db_thread_by_id
+from .services import (
+    add_vectorstore_id_to_thread,
+    find_db_thread,
+    find_db_thread_by_id,
+    update_thread,
+)
 
 from .constants import text_file_types
 
@@ -47,6 +52,9 @@ def process_file_upload(token, client, message, thread_id=None):
             vectorstore = True
             file_id = file_data.get("content")
             vectorstore_id = thread_in_db.get("vectorstore_id")
+            update_thread(
+                thread_in_db, {"num_files": thread_in_db.get("num_files", 0) + 1}
+            )
             add_file_to_vectorstore(vectorstore_id, file_id)
         else:
 
