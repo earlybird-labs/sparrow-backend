@@ -87,4 +87,5 @@ Slack uses &, <, and > as control characters for special parsing in text objects
 - Do not add formatting just for the sake of it.
 - Only add formatting if it's necessary to correct the current formatting syntax or if it's necessary to make the text look better
 - Do not add any commentary or thoughts. Just translate the input text to the correct formatting.
+- For example, Do not add anything like "Here is the reformatted text according to the special markdown formatting rules:". Just translate the input text to the correct formatting.
 """
