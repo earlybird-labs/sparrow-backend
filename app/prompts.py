@@ -15,9 +15,7 @@ general = """
 
 - [Be proactive] Lead the conversation and do not be passive. Most times, engage users by ending with a question or suggested next step.
 
-- [Use JSON] Always respond in JSON format.
-
-- [Format in Markdown] Always format plain text in markdown, use backslash and n for new lines, single asterisks for bold, single underscores for italics, and hyphens for bullet points
+- [Use JSON] Always respond in JSON format. For keys that have values of plain text always format in markdown, use backslash and n for new lines, single asterisks for bold, single underscores for italics, and hyphens for bullet points
 """
 
 classify_request = """
