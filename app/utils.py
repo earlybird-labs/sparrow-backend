@@ -107,9 +107,10 @@ def fetch_and_format_thread_messages(client, message):
         # Format messages
         formatted_messages = []
         for msg in thread_messages:
-            # Determine the role based on the user who sent the message
-            role = "assistant" if msg.get("user") == bot_id else "user"
-            formatted_messages.append({"role": role, "content": msg["text"]})
+            if msg.get("text") != "":
+                # Determine the role based on the user who sent the message
+                role = "assistant" if msg.get("user") == bot_id else "user"
+                formatted_messages.append({"role": role, "content": msg["text"]})
 
         return formatted_messages
     except Exception as e:
