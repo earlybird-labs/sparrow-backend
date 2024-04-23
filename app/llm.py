@@ -1,11 +1,8 @@
-import logging
-import pprint
-
 import instructor
+from instructor import Mode
 from openai import OpenAI
 from anthropic import Anthropic
 from groq import Groq
-
 
 from .config import (
     TOGETHER_API_KEY,
@@ -25,9 +22,10 @@ together_client = OpenAI(
     api_key=TOGETHER_API_KEY, base_url="https://api.together.xyz/v1"
 )
 
-groq_instructor = instructor.from_groq(groq_client, mode=instructor.Mode.JSON)
+groq_instructor = instructor.from_groq(groq_client, mode=Mode.JSON)
 openai_instructor = instructor.from_openai(openai_client)
 anthropic_instructor = instructor.from_anthropic(anthropic_client)
+together_instructor = instructor.from_openai(together_client, mode=Mode.MD_JSON)
 
 client_model_map = {
     "openai": {
@@ -46,7 +44,7 @@ client_model_map = {
         "model": "llama3-70b-8192",
     },
     "together": {
-        "instructor": openai_instructor,
+        "instructor": together_instructor,
         "chat": together_client,
         "model": "meta-llama/Llama-3-70b-chat-hf",
     },
