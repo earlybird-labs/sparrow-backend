@@ -8,6 +8,11 @@ from .handlers import (
     handle_onboard,
     handle_onboarding_modal_open,
     handle_onboarding_modal_submit,
+    handle_sparrow,
+    handle_reaction_added,
+    handle_url_verification,
+    handle_create_jira_yes,
+    handle_create_jira_no,
 )
 
 app = App(
@@ -16,17 +21,21 @@ app = App(
 )
 
 
-@app.event("url_verification")
-def handle_url_verification(event_data):
-    return event_data["challenge"]
-
-
+app.event("url_verification")(handle_url_verification)
 app.event("message")(handle_message)
+app.event("reaction_added")(handle_reaction_added)
+
 app.command("/onboard")(handle_onboard)
+app.command("/sparrow")(handle_sparrow)
+
 app.action("start_onboarding")(handle_onboarding_modal_open)
+app.action("create_jira_yes")(handle_create_jira_yes)
+app.action("create_jira_no")(handle_create_jira_no)
+
+
 app.view("onboarding_modal")(handle_onboarding_modal_submit)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 3000))
     print(f"Starting app on port {port}")
     app.start(port=port)
