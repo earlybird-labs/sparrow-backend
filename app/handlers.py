@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 from pprint import pprint
 
@@ -19,14 +18,9 @@ from .utils import (
 )
 from .workflows.blocks.raise_issue import generate_issue_prompt_blocks
 from .workflows.forms.onboard import create_onboarding_message, create_onboarding_modal
+from .logger import logger
 
 # from .agent.main import agent
-
-
-# At the top of the file, configure basic logging:
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 
 
 # Global dictionary to store context
@@ -52,7 +46,7 @@ def handle_message(ack, client, event, message, say):
             request_type = classify_user_request(event["text"])
 
             # Replace print with logging:
-            logging.info("request_type", request_type)
+            logger.info(f"request_type: {request_type}")
 
             request_detected = (
                 (
@@ -72,13 +66,13 @@ def handle_message(ack, client, event, message, say):
                 handle_pm_request(client, say, event, message, bot_id)
 
         if bot_mention:
-            logging.info("Handling direct message")
+            logger.info("Handling direct message")
             handle_direct_message(client, say, event, message, bot_id)
         elif is_thread:
             if bot_already_in_thread(
                 client, message.get("thread_ts"), message.get("channel")
             ):
-                logging.info("Handling thread message")
+                logger.info("Handling thread message")
                 handle_thread_message(client, say, event, message, bot_id, request_type)
 
 
@@ -126,22 +120,11 @@ def handle_create_jira_yes(ack, body, client, respond):
 def handle_create_jira_no(ack, body, client, say, respond):
     ack()
 
-    pprint(body)
-
-    user_id = body["user"]["id"]
-    channel_id = body["channel"]["id"]
-
     respond(
         text="No worries! If you need any help just use @Sparrow for help! :ebl:",
         thread_ts=body["container"]["message_ts"],
         delete_original=True,
     )
-
-    # client.chat_postEphemeral(
-    #     channel=channel_id,
-    #     user=user_id,
-    #     text="No worries! If you need any help just use @Sparrow for help! :ebl:",
-    # )
 
 
 def handle_reaction_added(ack, client, event):
@@ -166,10 +149,10 @@ def handle_sparrow(ack, client, respond, command):
 
 def handle_direct_message(client, say, event, message, bot_id):
     if message.get("files"):
-        logging.info("Handling direct message with file")
+        logger.info("Handling direct message with file")
         handle_message_with_file(client, say, event, message, bot_id)
     else:
-        logging.info("Handling direct message without file")
+        logger.info("Handling direct message without file")
         user_message = format_user_message(message, bot_id)
         response = llm_response([{"role": "user", "content": user_message}])
         process_response(response, False, client, say, event)
@@ -179,15 +162,15 @@ def handle_thread_message(
     client, say, event, message, bot_id, request_type=RequestType.bug_report
 ):
     formatted_messages = fetch_and_format_thread_messages(client, message)
-    pprint(formatted_messages, indent=2)
     # if is_bot_thread(client, formatted_messages):
     if message.get("files"):
-        logging.info("Handling thread message with file")
+        logger.info("Handling thread message with file")
         handle_message_with_file(
             client, say, event, message, bot_id, formatted_messages, request_type
         )
     else:
-        logging.info("Handling thread message without file")
+        logger.info("Handling thread message without file")
+        logger.info(f"request_type: {request_type}")
         response = llm_response(formatted_messages, request_type=request_type)
         process_response(response, False, client, say, event)
 
@@ -203,13 +186,11 @@ def handle_message_with_file(
 ):
     file_data, speech_mode = process_file_upload(client, message)
 
-    print("message", message)
-
     user_message = format_user_message(message, bot_id, file_data)
-    print("user_message", user_message)
+    logger.info(f"user_message: {user_message}")
 
     all_messages = compile_messages(additional_messages, user_message)
-    print("all_messages", all_messages)
+    logger.info(f"all_messages: {all_messages}")
 
     response = llm_response(all_messages, request_type=request_type)
 
@@ -241,7 +222,6 @@ def handle_onboard(ack, client, respond, command):
     channel_id = command.get("channel_id")
 
     onboarding_message = create_onboarding_message()
-    pprint(onboarding_message)
     # respond(onboarding_message)
     client.chat_postMessage(channel=channel_id, blocks=onboarding_message["blocks"])
 
@@ -332,13 +312,13 @@ def process_file_content(file_url, file_type, mimetype, message):
             ),
         }
     elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:
-        logging.info("Transcribing audio")
+        logger.info("Transcribing audio")
         return {
             "upload_type": "audio",
             "content": transcribe_audio(file_url, file_type),
         }
     else:
-        logging.error(f"Unsupported file type: {file_type}")
+        logger.error(f"Unsupported file type: {file_type}")
         return None
 
 
@@ -384,7 +364,7 @@ def handle_speak(client, channel, ai_response, thread_ts=None):
 
         result = client.files_upload_v2(**upload_kwargs)
     except Exception as e:
-        logging.error(f"Error uploading file: {str(e)}")
+        logger.error(f"Error uploading file: {str(e)}")
 
 
 def handle_url_verification(event_data):
