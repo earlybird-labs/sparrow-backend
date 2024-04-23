@@ -1,5 +1,13 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
+import enum
+
+
+class RequestType(enum.Enum):
+    feature_request = "feature_request"
+    bug_report = "bug_report"
+    general_request = "general_request"
+    conversation = "conversation"
 
 
 class AIResponse(BaseModel):
@@ -7,7 +15,7 @@ class AIResponse(BaseModel):
         default="",
         description="The assistant's response to the user's message.",
     )
-    bug: bool = Field(
-        default=False,
-        description="Whether the users message indicates they are having a bug.",
+    request_type: Optional[RequestType] = Field(
+        default=None,
+        description="The type of request the user is making.",
     )
