@@ -20,6 +20,7 @@ def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
     :param delay: initial delay between retries in seconds
     :param backoff: backoff multiplier e.g. value of 2 will double the delay each retry
     :param logger: logger to use. If None, print.
+    :return: Decorated function with retry capability.
     """
 
     def deco_retry(f):
@@ -45,39 +46,44 @@ def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
     return deco_retry
 
 
-# Apply the retry decorator to the say function
 @retry(SlackApiError, tries=5, delay=2, backoff=3)
 def safe_say(say, *args, **kwargs):
-    # Check if 'text' is in kwargs or if it's empty
+    """
+    Ensures that the 'say' function is executed safely with retries on SlackApiError.
+
+    :param say: The original 'say' function to be called.
+    :param args: Positional arguments for the 'say' function.
+    :param kwargs: Keyword arguments for the 'say' function.
+    :return: None
+    """
     if "text" not in kwargs or not kwargs["text"]:
-        # Provide a default text message or raise an error
         kwargs["text"] = "Sparrow is facing an issue, can you resend the message?"
-    # Proceed to call the original say function with the updated kwargs
     try:
         say(*args, **kwargs)
     except SlackApiError as e:
-        # Handle the SlackApiError
         logging.error(f"Slack API Error: {e}")
 
 
 def format_markdown_to_slack_markdown(text):
     """
     Converts markdown syntax in a string to Slack's markdown syntax using regex.
-    It handles both italic and bold markdown syntax conversions.
 
     :param text: The string containing markdown syntax for bold and italic.
     :return: A string with markdown syntax converted to Slack's markdown format.
     """
-    # Convert markdown italic syntax (*) to Slack's underscore italic (_)
     text = re.sub(r"\*(.*?)\*", r"_\1_", text)
-
-    # Convert markdown bold syntax (**) to Slack's asterisk bold (*)
     formatted_text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
-
     return formatted_text
 
 
 def is_bot_thread(client, messages):
+    """
+    Determines if a bot is part of the thread based on the messages.
+
+    :param client: The Slack client instance used to interact with the Slack API.
+    :param messages: List of message dictionaries from a thread.
+    :return: Boolean indicating if the bot is part of the thread.
+    """
     bot_id = client.auth_test()["user_id"]
     return any(f"<@{bot_id}>" in msg["content"] for msg in messages)
 
@@ -86,29 +92,23 @@ def fetch_and_format_thread_messages(client, message):
     """
     Fetches all messages from a thread and formats them.
 
-    Parameters:
-    - client: The Slack client instance used to interact with the Slack API.
-    - message: The message event data containing details about the thread.
-
-    Returns:
-    A list of dictionaries, each representing a formatted message.
+    :param client: The Slack client instance used to interact with the Slack API.
+    :param message: The message event data containing details about the thread.
+    :return: A list of dictionaries, each representing a formatted message.
     """
     try:
         thread_ts = message["thread_ts"]
         channel_id = message["channel"]
         bot_id = client.auth_test()["user_id"]
 
-        # Fetch all messages from the thread
         thread_messages_response = client.conversations_replies(
             channel=channel_id, ts=thread_ts
         )
         thread_messages = thread_messages_response["messages"]
 
-        # Format messages
         formatted_messages = []
         for msg in thread_messages:
             if msg.get("text") != "":
-                # Determine the role based on the user who sent the message
                 role = "assistant" if msg.get("user") == bot_id else "user"
                 formatted_messages.append({"role": role, "content": msg["text"]})
 
@@ -119,28 +119,39 @@ def fetch_and_format_thread_messages(client, message):
 
 
 def save_audio_file(file_url, file_type):
-    # Fetch the audio file content from the URL
+    """
+    Fetches and saves an audio file from a URL.
+
+    :param file_url: URL of the audio file to fetch.
+    :param file_type: Type of the audio file (e.g., 'mp3', 'wav').
+    :return: Path to the saved audio file.
+    """
     response = httpx.get(file_url)
-
-    # Generate a filename with the current timestamp and the provided file type
     filename = f"{int(time.time())}.{file_type}"
-
-    # Define the path where the file will be saved (ensure the app/tmp directory exists)
     file_path = os.path.join("tmp", filename)
 
-    # Save the file content to the specified path
     with open(file_path, "wb") as file:
         file.write(response.content)
 
-    # Return the path to the saved file
     return file_path
 
 
 def delete_file(file_path):
+    """
+    Deletes a file from the filesystem.
+
+    :param file_path: Path to the file to be deleted.
+    """
     os.remove(file_path)
 
 
 def get_file_data(file_url):
+    """
+    Fetches file data from a URL and encodes it in base64.
+
+    :param file_url: URL of the file to fetch.
+    :return: Base64 encoded string of the file data.
+    """
     response = httpx.get(file_url)
     file_data = base64.b64encode(response.content).decode("utf-8")
     return file_data

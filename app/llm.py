@@ -59,6 +59,13 @@ system_prompt_map = {
 
 
 def classify_user_request(message, client_name="groq"):
+    """
+    Classifies the user's request based on the provided message and client.
+
+    :param message: The user's message to classify.
+    :param client_name: The name of the client to use for classification.
+    :return: The classified request type or None if an error occurs.
+    """
     try:
         client = client_model_map[client_name]["instructor"]
         model = client_model_map[client_name]["model"]
@@ -85,7 +92,17 @@ def llm_response(
     retry_count=1,
     structured=False,
 ):
+    """
+    Generates a response from a language model based on the provided parameters.
 
+    :param messages: List of messages for the language model.
+    :param temperature: The randomness of the response generation.
+    :param client_name: The client to use for generating the response.
+    :param request_type: The type of request to respond to.
+    :param retry_count: Number of retries if the initial attempt fails.
+    :param structured: Boolean indicating if the response should be structured.
+    :return: An AIResponse object or None if all attempts fail.
+    """
     model = client_model_map[client_name]["model"]
 
     request_type_value = request_type.value
@@ -140,6 +157,12 @@ def llm_response(
 
 
 def format_response_in_markdown(response):
+    """
+    Formats the given response in markdown.
+
+    :param response: The response to format.
+    :return: The formatted response or None if an error occurs.
+    """
     try:
         return llm_response(
             messages=[
@@ -163,6 +186,12 @@ def format_response_in_markdown(response):
 
 
 def create_title_from_transcript(transcript):
+    """
+    Creates a title from the given transcript.
+
+    :param transcript: The transcript to create a title from.
+    :return: The created title or None if an error occurs.
+    """
     try:
         return llm_response(
             messages=[
@@ -181,6 +210,13 @@ def create_title_from_transcript(transcript):
 
 
 def transcribe_audio(file_url, file_type):
+    """
+    Transcribes audio from the given file URL and file type.
+
+    :param file_url: The URL of the audio file.
+    :param file_type: The type of the audio file.
+    :return: The transcription text or None if an error occurs.
+    """
     try:
         audio_file_path = save_audio_file(file_url, file_type)
         audio_file = open(audio_file_path, "rb")
@@ -196,6 +232,12 @@ def transcribe_audio(file_url, file_type):
 
 
 def create_speech(text):
+    """
+    Creates speech from the given text.
+
+    :param text: The text to convert to speech.
+    :return: None if an error occurs.
+    """
     try:
         speech_file_path = "tmp/speech.mp3"
         response = openai_client.audio.speech.create(
@@ -210,6 +252,14 @@ def create_speech(text):
 
 
 def describe_vision_anthropic(file_url, image_media_type, message=None):
+    """
+    Describes the vision of an image using the Anthropic model.
+
+    :param file_url: The URL of the image.
+    :param image_media_type: The media type of the image.
+    :param message: Optional message to include in the description.
+    :return: The detailed description of the image or None if an error occurs.
+    """
     try:
         if message:
             prompt = f"The user's request is {message}. Your job is to describe this image in as much detail as possible as it relates to the user's request to be used in your response."
@@ -247,6 +297,12 @@ def describe_vision_anthropic(file_url, image_media_type, message=None):
 
 
 def describe_image(file_url):
+    """
+    Requests a description of an image using the OpenAI GPT-4 Turbo model.
+
+    :param file_url: The URL of the image to be described.
+    :return: A string containing the description of the image or None if an error occurs.
+    """
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4-turbo",

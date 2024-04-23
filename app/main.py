@@ -3,6 +3,7 @@ import os
 from slack_bolt import App
 
 from .config import SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET
+
 from .handlers import (
     handle_message,
     handle_onboard,
