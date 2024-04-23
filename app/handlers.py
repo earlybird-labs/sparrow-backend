@@ -6,15 +6,14 @@ from .config import SLACK_USER_TOKEN
 from .llm import (
     classify_user_request,
     create_speech,
-    describe_vision_anthropic,
     llm_response,
-    transcribe_audio,
+    create_title_from_transcript,
+    format_response_in_markdown,
 )
-from .models import RequestType
-from .helpers import process_file_upload
+from .models import RequestType, AIResponse
+from .helpers import process_file_upload, format_user_message
 from .utils import (
     fetch_and_format_thread_messages,
-    is_bot_thread,
     safe_say,
 )
 from .workflows.blocks.raise_issue import generate_issue_prompt_blocks
@@ -36,6 +35,8 @@ def handle_message(ack, client, event, message, say):
     ignore_list = ["message_deleted", "message_changed"]
 
     if event.get("subtype") not in ignore_list:
+
+        logger.info(f"event:\n{json.dumps(event, indent=4)}")
 
         is_thread = message.get("thread_ts") is not None
         bot_mention = bot_id in message.get("text")
@@ -114,6 +115,7 @@ def handle_create_jira_yes(ack, body, client, respond):
     )
 
     respond(
+        text="Great, lets discuss your request in the thread above! :ebl:",
         delete_original=True,
     )
 
@@ -121,8 +123,10 @@ def handle_create_jira_yes(ack, body, client, respond):
 def handle_create_jira_no(ack, body, client, say, respond):
     ack()
 
+    bot_id = client.auth_test()["user_id"]
+
     respond(
-        text="No worries! If you need any help just use @Sparrow for help! :ebl:",
+        text=f"No worries! If you need any help just use <@{bot_id}> for help! :ebl:",
         thread_ts=body["container"]["message_ts"],
         delete_original=True,
     )
@@ -273,13 +277,6 @@ def handle_onboarding_modal_submit(ack, body, view):
     pprint(view)
 
 
-def format_user_message(message, bot_id, file_data=None):
-    user_message = message.get("text").replace(f"<@{bot_id}>", "")
-    if file_data:
-        user_message += "\nUser uploaded file contents:\n" + json.dumps(file_data)
-    return user_message
-
-
 def compile_messages(additional_messages, user_message):
     all_messages = additional_messages if additional_messages else []
     all_messages.append({"role": "user", "content": user_message})
@@ -287,27 +284,32 @@ def compile_messages(additional_messages, user_message):
 
 
 def process_response(response, speech_mode, client, say, event):
+    if type(response) == AIResponse:
+        response = response.ai_response
+
     if speech_mode:
-        create_speech(response.ai_response)
-        handle_speak(
-            client, event["channel"], response.ai_response, thread_ts=event["ts"]
-        )
+        create_speech(response)
+        handle_speak(client, event["channel"], response, thread_ts=event["ts"])
     else:
-        safe_say(say, text=response.ai_response, thread_ts=event["ts"])
+        formatted_response = format_response_in_markdown(response)
+        safe_say(say, text=formatted_response, thread_ts=event["ts"])
 
 
 def handle_speak(client, channel, ai_response, thread_ts=None):
     try:
         file_path = "tmp/speech.mp3"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        title = create_title_from_transcript(ai_response)
         upload_kwargs = {
             "channels": channel,
             "file": file_path,
-            "title": "Sparrow's Response",
+            "title": title,
             "initial_comment": ai_response,
         }
         if thread_ts:
             upload_kwargs["thread_ts"] = thread_ts
+
+        pprint(upload_kwargs)
 
         result = client.files_upload_v2(**upload_kwargs)
     except Exception as e:
