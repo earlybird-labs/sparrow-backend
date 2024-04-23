@@ -1,11 +1,17 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from enum import Enum
 
 
-class ThreadStatus(Enum):
-    OPEN = "open"
-    CLOSED = "closed"
+class JiraMetadata(BaseModel):
+    organization_id: str
+
+
+class UserSchema(BaseModel):
+    user_id: str = Field(..., alias="_id")
+    slack_user_id: str
+    name: str
+    metadata: Optional[Dict[str, Any]] = {}
 
 
 class MessageSchema(BaseModel):
@@ -13,7 +19,7 @@ class MessageSchema(BaseModel):
     user_id: str
     content: str
     timestamp: str
-    attachments: Optional[List[str]]
+    attachments: Optional[List[str]] = []
 
 
 class ChannelSchema(BaseModel):
@@ -31,8 +37,13 @@ class ProjectSchema(BaseModel):
     context: Optional[str]
 
 
+class ThreadStatus(Enum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
 class ThreadSchema(BaseModel):
     thread_id: str = Field(..., alias="_id")
     channel_id: str
-    messages: List[MessageSchema.message_id]
+    messages: List[str]
     status: ThreadStatus
