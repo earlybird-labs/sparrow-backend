@@ -1,3 +1,4 @@
+import time
 import json
 import os
 from pprint import pprint
@@ -334,12 +335,17 @@ def handle_message_with_file(
         completed = False
         while not completed:
             steps = run_steps(oai_thread, run_id)
-            for step in steps:
-                if step.status == "completed":
-                    completed = True
-                    msg_id = step.step_details.message_creation.message_id
-                    result = retrieve_message(msg_id, oai_thread)
-                    break
+            for step in steps.data:
+                try:
+                    if step.status == "completed":
+                        msg_id = step.step_details.message_creation.message_id
+                        result = retrieve_message(msg_id, oai_thread)
+                        completed = True
+                        break
+                except Exception as e:
+                    print(f"Error processing step: {e}")
+                    completed = False
+                time.sleep(1)
         user_message += "Document Search Results:\n" + result
 
     all_messages = compile_messages(additional_messages, user_message)

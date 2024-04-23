@@ -15,6 +15,8 @@ from .prompts import general, project_manager, classify_request, formatting_prom
 from .utils import get_file_data, save_file, delete_file
 from .logger import logger
 
+import time
+
 groq_client = Groq(api_key=GROQ_API_KEY)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -59,7 +61,11 @@ system_prompt_map = {
 
 
 def upload_file(file_url):
-    return openai_client.files.create(file=open(file_url, "rb"), purpose="assistants")
+    response = openai_client.files.create(
+        file=open(file_url, "rb"), purpose="assistants"
+    )
+    time.sleep(10)
+    return response
 
 
 def get_vectorstore(vectorstore_id):
@@ -104,7 +110,7 @@ def add_message_to_thread(thread_id, content, role="user"):
 
 def create_run(thread_id, assistant_id="asst_2KNsZSP3VAyHcfce8HQB6e9l"):
     return openai_client.beta.threads.runs.create(
-        thread_id=thread_id, assistant_id=assistant_id
+        thread_id=thread_id, assistant_id=assistant_id, tools=[{"type": "file_search"}]
     )
 
 

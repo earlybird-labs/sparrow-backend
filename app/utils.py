@@ -4,11 +4,14 @@ import base64
 import httpx
 from functools import wraps
 from slack_sdk.errors import SlackApiError
+import requests
 
 
 import os
 import time
 import re
+
+from .logger import logger
 
 
 def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
@@ -134,6 +137,27 @@ def save_file(file_url, file_type):
         file.write(response.content)
 
     return file_path
+
+
+def download_and_save_file(file_url, file_type):
+    try:
+        response = requests.get(file_url, stream=True)
+        timestamp = int(time.time())
+        if response.status_code == 200:
+            file_path = f"/tmp/{timestamp}.{file_type}"
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            return file_path
+        else:
+            logger.error(
+                f"Failed to download file: {file_url} with status code: {response.status_code}"
+            )
+    except Exception as e:
+        logger.error(
+            f"Exception occurred while downloading file: {file_url}, Error: {str(e)}"
+        )
+    return None
 
 
 def delete_file(file_path):

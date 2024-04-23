@@ -18,7 +18,7 @@ from .services import (
 
 from .constants import text_file_types
 
-from .utils import get_file_data, save_file
+from .utils import get_file_data, save_file, download_and_save_file
 
 
 def process_file_upload(token, client, message, thread_id=None):
@@ -45,6 +45,10 @@ def process_file_upload(token, client, message, thread_id=None):
         file_url, file_type, mimetype = share_file_and_get_url(
             token, client, file.get("id")
         )
+
+        print("file_url", file_url)
+        print("file_type", file_type)
+        print("mimetype", mimetype)
 
         file_data = process_file_content(file_url, file_type, mimetype, message)
 
@@ -121,22 +125,25 @@ def process_file_content(file_url, file_type, mimetype, message):
             "upload_type": "audio",
             "content": transcribe_audio(file_url, file_type),
         }
-
     elif file_type in text_file_types:
         logger.info("Processing text file")
-
-        file_path = save_file(file_url, file_type)
-
-        file_id = upload_file(file_path).id
-        print(file_id)
-
-        return {
-            "upload_type": "text_file",
-            "content": file_id,
-        }
+        file_path = download_and_save_file(file_url, file_type)
+        if file_path:
+            upload_response = upload_file(file_path)
+            if upload_response and hasattr(upload_response, "id"):
+                file_id = upload_response.id
+                print(file_id)
+                return {
+                    "upload_type": "text_file",
+                    "content": file_id,
+                }
+            else:
+                logger.error("Failed to upload file or invalid upload response")
+        else:
+            logger.error("File download failed or file path is None")
     else:
         logger.error(f"Unsupported file type: {file_type}")
-        return None
+    return None
 
 
 def revoke_file_public_access(token, client, file_id):
