@@ -11,7 +11,7 @@ from .config import (
     GROQ_API_KEY,
 )
 from .models import AIResponse, RequestType
-from .prompts import general, project_manager, classify_request
+from .prompts import general, project_manager, classify_request, formatting_prompt
 from .utils import get_file_data, save_audio_file, delete_file
 from .logger import logger
 
@@ -79,6 +79,7 @@ def classify_user_request(message, client_name="groq"):
 
 def llm_response(
     messages,
+    temperature=0.7,
     client_name="groq",
     request_type=RequestType.conversation,
     retry_count=1,
@@ -108,6 +109,7 @@ def llm_response(
 
                 return client.create(
                     model=model,
+                    temperature=temperature,
                     messages=full_messages,
                     response_model=AIResponse,
                 )
@@ -130,10 +132,52 @@ def llm_response(
 
         response = client.chat.completions.create(
             model=model,
+            temperature=temperature,
             messages=messages,
         )
 
         return AIResponse(ai_response=response.choices[0].message.content)
+
+
+def format_response_in_markdown(response):
+    try:
+        return llm_response(
+            messages=[
+                {
+                    "role": "system",
+                    "content": formatting_prompt,
+                },
+                {"role": "user", "content": response},
+                {
+                    "role": "assistant",
+                    "content": "Here is the reformatted text according to the special markdown formatting rules:\n",
+                },
+            ],
+            temperature=0.0,
+            client_name="groq",
+            structured=False,
+        ).ai_response.strip()
+    except Exception as e:
+        logger.error(f"Error formatting response in markdown: {e}")
+        return None
+
+
+def create_title_from_transcript(transcript):
+    try:
+        return llm_response(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Your job is to create a single phrase title for a voice memo.",
+                },
+                {"role": "user", "content": transcript},
+            ],
+            client_name="groq",
+            structured=False,
+        ).ai_response
+    except Exception as e:
+        logger.error(f"Error creating title from transcript: {e}")
+        return None
 
 
 def transcribe_audio(file_url, file_type):
