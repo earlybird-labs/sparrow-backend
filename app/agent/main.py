@@ -73,14 +73,16 @@ llm = ChatOpenAI(model="gpt-4-turbo")
 
 jira = JiraAPIWrapper()
 toolkit = JiraToolkit.from_jira_api_wrapper(jira)
-tools = toolkit.get_tools()
+
+# Only get the first 3 tools (JQL Query, Get Projects, Create Issue)
+tools = toolkit.get_tools()[0:2]
+
+
 agent = initialize_agent(
     tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
 )
 
-response = agent.run(
-    "Create an issue in Jira Service Desk project SS under organization id 13 for the issue 'Fix spacing in the header 2'"
-)
+response = agent.run("Find issue SS-3")
 
 # print("type", type(response))
 print(response)
