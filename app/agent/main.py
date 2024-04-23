@@ -75,14 +75,20 @@ jira = JiraAPIWrapper()
 toolkit = JiraToolkit.from_jira_api_wrapper(jira)
 
 # Only get the first 3 tools (JQL Query, Get Projects, Create Issue)
-tools = toolkit.get_tools()[0:2]
+tools = toolkit.get_tools()
 
 
 agent = initialize_agent(
     tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
 )
 
-response = agent.run("Find issue SS-3")
+agent_input = """
+Here's a detailed Jira ticket in markdown for the Rescue Ring feature: \\ Title: Implement Rescue Ring Feature \\ Description: \\ **Objective:** To develop a discreet activation feature within the app that allows users to simulate an incoming phone call. The feature, named Rescue Ring, will enable users to exit uncomfortable or unsafe situations by providing a plausible excuse without attracting undue attention. These are the requirements and suggested functionalities: \\ - **Discreet Activation Mechanism:** Users should be able to trigger the Rescue Ring discreetly. Possible activation methods include a specific button sequence, a gesture, or a voice command. \\ - **Fake Call Simulation:** Upon activation, the app will simulate an incoming call. This includes customization options such as caller name, ringtone, and vibration pattern to ensure the call seems genuine. \\ - **Emergency Contact Notification:** Optionally send a notification to a predetermined emergency contact with the user's location and a brief alert message. \\ - **Background Audio Recording:** Start recording audio in the background once the Rescue Ring is activated to document the environment, which could be helpful if later review is necessary. \\ Acceptance Criteria: \\ - The feature must be easily accessible and must operate reliably under different conditions. \\ - The activation method must be intuitive yet secure to prevent accidental triggers. \\ - The user interface for feature setup must be user-friendly and integrate seamlessly with the rest of the app's design. \\ - Ensure privacy compliance with audio recording and sharing of user data. \\ Priority: High \\ Labels: safety_features, user_privacy, emergency_response \\ This structure provides a clear and comprehensive overview to guide the development team in implementing the Rescue Ring feature effectively.
+"""
+
+response = agent.run(
+    f"Create an issue in project THRD with the following details: {agent_input}"
+)
 
 # print("type", type(response))
 print(response)
