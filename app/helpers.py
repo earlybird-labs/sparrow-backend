@@ -15,7 +15,7 @@ def process_file_upload(token, client, message):
         )
         file_data.append(process_file_content(file_url, file_type, mimetype, message))
         speech_mode |= file_type in ["webm", "mp4", "mp3", "wav", "m4a"]
-        revoke_file_public_access(client, file.get("id"))
+        revoke_file_public_access(token, client, file.get("id"))
 
     return file_data, speech_mode
 
@@ -63,7 +63,9 @@ def revoke_file_public_access(token, client, file_id):
 def format_user_message(message, bot_id, file_data=None):
     user_message = message.get("text").replace(f"<@{bot_id}>", "")
     if file_data:
-        user_message += "\nUser uploaded file contents:\n" + json.dumps(file_data)
+        user_message += "\nUser uploaded file contents:\n" + "".join(
+            [f"{file['upload_type']}: {file['content']}\n" for file in file_data]
+        )
     return user_message
 
 
