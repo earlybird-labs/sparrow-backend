@@ -113,7 +113,7 @@ def llm_response(
                 )
 
             except Exception as e:
-                logging.error(
+                logger.error(
                     f"Attempt {attempt} failed for {client_name} with error: {e}"
                 )
                 if attempt < retry_count:
