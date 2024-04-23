@@ -12,7 +12,7 @@ from .config import (
 )
 from .models import AIResponse, RequestType
 from .prompts import general, project_manager, classify_request, formatting_prompt
-from .utils import get_file_data, save_audio_file, delete_file
+from .utils import get_file_data, save_file, delete_file
 from .logger import logger
 
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -56,6 +56,75 @@ system_prompt_map = {
     "conversation": general,
     "general_request": general,
 }
+
+
+def upload_file(file_url):
+    return openai_client.files.create(file=open(file_url, "rb"), purpose="assistants")
+
+
+def get_vectorstore(vectorstore_id):
+    return openai_client.beta.vector_stores.retrieve(vectorstore_id)
+
+
+def create_vectorstore(name, lifespan_days=7):
+    return openai_client.beta.vector_stores.create(
+        name=name,
+        expires_after={"anchor": "last_active_at", "days": lifespan_days},
+    )
+
+
+def add_file_to_vectorstore(vectorstore_id, file_id):
+    return openai_client.beta.vector_stores.files.create(
+        vector_store_id=vectorstore_id, file_id=file_id
+    )
+
+
+def delete_vectorstore(vectorstore_id):
+    return openai_client.beta.vector_stores.delete(vectorstore_id)
+
+
+def modify_thread(thread_id, vectorstore_ids):
+    return openai_client.beta.threads.update(
+        thread_id=thread_id,
+        tool_resources={"file_search": {"vector_store_ids": vectorstore_ids}},
+    )
+
+
+def create_thread():
+
+    # Create a thread and attach the file to the message
+    return openai_client.beta.threads.create()
+
+
+def add_message_to_thread(thread_id, content, role="user"):
+    return openai_client.beta.threads.messages.create(
+        thread_id=thread_id, role=role, content=content
+    )
+
+
+def create_run(thread_id, assistant_id="asst_2KNsZSP3VAyHcfce8HQB6e9l"):
+    return openai_client.beta.threads.runs.create(
+        thread_id=thread_id, assistant_id=assistant_id
+    )
+
+
+def retrieve_message(message_id, thread_id):
+    result = (
+        openai_client.beta.threads.messages.retrieve(
+            message_id=message_id,
+            thread_id=thread_id,
+        )
+        .content[0]
+        .text.value
+    )
+    print("result", result)
+    return result
+
+
+def run_steps(thread_id, run_id):
+    return openai_client.beta.threads.runs.steps.list(
+        thread_id=thread_id, run_id=run_id
+    )
 
 
 def classify_user_request(message, client_name="groq"):
@@ -171,10 +240,6 @@ def format_response_in_markdown(response):
                     "content": formatting_prompt,
                 },
                 {"role": "user", "content": response},
-                {
-                    "role": "assistant",
-                    "content": "Here is the reformatted text according to the special markdown formatting rules:\n",
-                },
             ],
             temperature=0.0,
             client_name="groq",
@@ -218,7 +283,7 @@ def transcribe_audio(file_url, file_type):
     :return: The transcription text or None if an error occurs.
     """
     try:
-        audio_file_path = save_audio_file(file_url, file_type)
+        audio_file_path = save_file(file_url, file_type)
         audio_file = open(audio_file_path, "rb")
         transcription = openai_client.audio.transcriptions.create(
             model="whisper-1", file=audio_file
