@@ -18,8 +18,8 @@ This Slack bot is designed to assist users in a Slack workspace by responding to
 
 2. **Create a Virtual Environment**:
     ```bash
-    python3 -m venv env
-    source env/bin/activate
+    python3 -m venv .venv
+    source .venv/bin/activate
     ```
 
 3. **Install Dependencies**:

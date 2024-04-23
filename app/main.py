@@ -4,9 +4,12 @@ from slack_bolt import App
 
 from .config import SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from .handlers import (
     handle_message,
-    handle_onboard,
     handle_onboarding_modal_open,
     handle_onboarding_modal_submit,
     handle_sparrow,
@@ -21,13 +24,12 @@ app = App(
     signing_secret=SLACK_SIGNING_SECRET,
 )
 
-# Event handlers
+
 app.event("url_verification")(handle_url_verification)
 app.event("message")(handle_message)
 app.event("reaction_added")(handle_reaction_added)
 
 # Command handlers
-app.command("/onboard")(handle_onboard)
 app.command("/sparrow")(handle_sparrow)
 
 # Action handlers

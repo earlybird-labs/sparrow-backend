@@ -118,13 +118,13 @@ def fetch_and_format_thread_messages(client, message):
         return []
 
 
-def save_audio_file(file_url, file_type):
+def save_file(file_url, file_type):
     """
     Fetches and saves an audio file from a URL.
 
-    :param file_url: URL of the audio file to fetch.
-    :param file_type: Type of the audio file (e.g., 'mp3', 'wav').
-    :return: Path to the saved audio file.
+    :param file_url: URL of the file to fetch.
+    :param file_type: Type of the file (e.g., 'mp3', 'wav', 'pdf')
+    :return: Path to the saved file.
     """
     response = httpx.get(file_url)
     filename = f"{int(time.time())}.{file_type}"

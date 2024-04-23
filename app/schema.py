@@ -81,5 +81,5 @@ class ThreadStatus(Enum):
 class ThreadSchema(BaseModel):
     id: PydanticObjectId = Field(alias="_id")
     channel_id: str
-    messages: List[str]
-    status: ThreadStatus
+    ts: str
+    status: Optional[ThreadStatus] = ThreadStatus.OPEN

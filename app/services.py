@@ -1,7 +1,41 @@
 from .database import MongoDB
 from .schema import UserSchema
+from bson.objectid import ObjectId
 
 db = MongoDB.get_instance()
+
+
+def create_db_thread(channel_id, ts, oai_thread, vectorstore_id=None):
+    return db.threads.insert_one(
+        {
+            "channel_id": channel_id,
+            "ts": ts,
+            "oai_thread": oai_thread,
+            "vectorstore_id": vectorstore_id,
+        }
+    )
+
+
+def find_db_thread(channel_id, ts):
+    return db.threads.find_one({"channel_id": channel_id, "ts": ts})
+
+
+def find_db_thread_by_id(thread_id):
+    if type(thread_id) == str:
+        return db.threads.find_one({"_id": ObjectId(thread_id)})
+    else:
+        return db.threads.find_one({"_id": thread_id})
+
+
+def add_vectorstore_id_to_thread(thread_id, vectorstore_id):
+    if type(thread_id) == str:
+        return db.threads.update_one(
+            {"_id": ObjectId(thread_id)}, {"$set": {"vectorstore_id": vectorstore_id}}
+        )
+    else:
+        return db.threads.update_one(
+            {"_id": thread_id}, {"$set": {"vectorstore_id": vectorstore_id}}
+        )
 
 
 def create_user(slack_user_id, name, email):
