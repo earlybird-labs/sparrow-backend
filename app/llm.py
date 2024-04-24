@@ -75,7 +75,7 @@ class LLMClient:
     def get_vectorstore(self, vectorstore_id: str) -> Any:
         return self.openai_client.beta.vector_stores.retrieve(vectorstore_id)
 
-    def create_vectorstore(self, name: str, lifespan_days: int = 3) -> Any:
+    def create_vectorstore(self, name: str, lifespan_days: int = 1) -> Any:
         return self.openai_client.beta.vector_stores.create(
             name=name,
             expires_after={"anchor": "last_active_at", "days": lifespan_days},

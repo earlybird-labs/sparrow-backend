@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from slack_sdk import WebClient
 from .logger import logger
 from .llm import LLMClient
-from .database import Database
+from .database import Database, db
 from .constants import text_file_types
 from .utils import get_file_data, save_file, download_and_save_file
 
@@ -14,6 +14,7 @@ def process_file_upload(
     client: WebClient,
     message: Dict[str, Any],
     database: Database,
+    llm_client: LLMClient,
     thread_id: Optional[str] = None,
 ) -> Tuple[List[Dict[str, str]], bool, bool]:
     files = message.get("files")
@@ -47,7 +48,11 @@ def process_file_upload(
             database.update_thread(
                 thread_in_db, {"num_files": thread_in_db.get("num_files", 0) + 1}
             )
-            LLMClient.add_file_to_vectorstore(vectorstore_id, file_id)
+            print(vectorstore_id)
+            print(file_id)
+            llm_client.add_file_to_vectorstore(
+                vectorstore_id=vectorstore_id, file_id=file_id
+            )
         else:
             file_datas.append(file_data)
 
