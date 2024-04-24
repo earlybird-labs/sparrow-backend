@@ -40,6 +40,8 @@ def get_thread_in_db(message, thread_ts, ts):
     thread_id = find_db_thread(message.get("channel"), thread_ts)
     print("OG thread_id", thread_id)
     print("type(thread_id) at OG", type(thread_id))
+    print("OG ts", ts)
+    print("OG thread_ts", thread_ts)
 
     if not thread_id:
         oai_thread = create_thread()
@@ -113,6 +115,7 @@ def handle_message(ack, client, event, message, say):
                 client, message.get("thread_ts"), message.get("channel")
             ):
                 thread_id = get_thread_in_db(message, thread_ts, ts)
+
                 print(thread_id)
                 logger.info("Handling thread message")
                 handle_thread_message(
@@ -281,6 +284,27 @@ def handle_thread_message(
     else:
         logger.info("Handling thread message without file")
         logger.info(f"request_type: {request_type}")
+        user_message = formatted_messages[-1]["content"]
+        oai_thread = find_db_thread_by_id(thread_id)["oai_thread"]
+        add_message_to_thread(oai_thread, user_message, "user")
+        run_id = create_run(oai_thread).id
+        print("create_run")
+        completed = False
+        while not completed:
+            steps = run_steps(oai_thread, run_id)
+            for step in steps.data:
+                try:
+                    if step.status == "completed":
+                        msg_id = step.step_details.message_creation.message_id
+                        result = retrieve_message(msg_id, oai_thread)
+                        completed = True
+                        break
+                except Exception as e:
+                    print(f"Error processing step: {e}")
+                    completed = False
+                time.sleep(1)
+        context_found = "Document Search Results:\n" + result
+        formatted_messages.append({"role": "user", "content": context_found})
         response = llm_response(formatted_messages, request_type=request_type)
         process_response(response, False, client, say, event)
 
@@ -322,7 +346,13 @@ def handle_message_with_file(
     logger.info(f"user_message: {user_message}")
 
     if vectorstore:
-        vectorstore_id = find_db_thread_by_id(thread_id).get("vectorstore_id")
+        db_thread = find_db_thread_by_id(thread_id)
+        if not db_thread:
+            db_thread = find_db_thread(message.get("channel"), message.get("ts"))
+            thread_id = db_thread.get("_id")
+            vectorstore_id = db_thread.get("vectorstore_id")
+        else:
+            vectorstore_id = db_thread.get("vectorstore_id")
         print("vectorstore_id", vectorstore_id)
         oai_thread = find_db_thread_by_id(thread_id)["oai_thread"]
         modify_thread(oai_thread, [vectorstore_id])
@@ -428,7 +458,11 @@ def compile_messages(additional_messages, user_message):
     :param user_message: The primary user message.
     :return: List of structured messages.
     """
-    all_messages = additional_messages if additional_messages else []
+    # Ensure additional_messages is always treated as a list
+    if not isinstance(additional_messages, list):
+        additional_messages = []
+
+    all_messages = additional_messages
     all_messages.append({"role": "user", "content": user_message})
     return all_messages
 
