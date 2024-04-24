@@ -14,6 +14,6 @@ class RequestType(enum.Enum):
 
 
 class AIResponse(BaseModel):
-    ai_response: str = Field(
+    content: str = Field(
         description="The assistant's response to the user's message.",
     )
