@@ -38,3 +38,6 @@ class Database:
         self.threads_collection.update_one(
             {"_id": thread["_id"]}, {"$set": update_data}
         )
+
+
+db = Database()

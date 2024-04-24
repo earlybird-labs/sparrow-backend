@@ -64,13 +64,14 @@ class MessageHandler:
     def _handle_file_message(
         self, client, say, event, message, bot_id, bot_mention, thread_ts, ts
     ):
+
+        thread_id = self._get_or_create_thread(message, thread_ts, ts)
+
         if bot_mention:
             logger.info("Handling direct message")
-            thread_id = self._get_or_create_thread(message, thread_ts, ts)
             self._handle_direct_message(client, say, event, message, bot_id, thread_id)
         elif thread_ts is not None:
             if self._bot_already_in_thread(thread_ts, message.get("channel")):
-                thread_id = self._get_or_create_thread(message, thread_ts, ts)
                 logger.info("Handling thread message")
                 self._handle_thread_message(
                     client, say, event, message, bot_id, thread_id
@@ -92,7 +93,9 @@ class MessageHandler:
             )
             and not bot_mention
             and thread_ts is None
-        ) or self._bot_already_in_thread(thread_ts, message.get("channel"))
+        ) or self._bot_already_in_thread(
+            thread_ts, message.get("channel"), message.get("ts")
+        )
 
         if request_detected:
             logger.info("PM request detected")
@@ -241,7 +244,8 @@ class MessageHandler:
                     completed = False
                 time.sleep(1)
         context_found = "Document Search Results:\n" + result
-        formatted_messages.append({"role": "user", "content": context_found})
+
+        formatted_messages = self._compile_messages(formatted_messages, context_found)
         response = self.llm_client.llm_response(formatted_messages)
         self._process_response(response, False, client, say, event)
 
@@ -260,7 +264,7 @@ class MessageHandler:
         )
 
         file_datas, speech_mode, vectorstore = process_file_upload(
-            SLACK_USER_TOKEN, client, message, thread_id
+            SLACK_USER_TOKEN, client, message, self.database, self.llm_client, thread_id
         )
 
         user_message = format_user_message(message, bot_id, file_datas)
@@ -302,8 +306,8 @@ class MessageHandler:
             if file["upload_type"] == "audio":
                 if transcription:
                     transcription += "\n" + file["content"]
-            elif file["upload_type"] == "image":
-                transcription = file["content"]
+            # elif file["upload_type"] == "image":
+            #     transcription = file["content"]
         if transcription:
             client.chat_update(
                 token=SLACK_USER_TOKEN,
@@ -313,8 +317,13 @@ class MessageHandler:
             )
         self._process_response(response, speech_mode, client, say, event)
 
-    def _bot_already_in_thread(self, thread_ts: str, channel_id: str) -> bool:
+    def _bot_already_in_thread(
+        self, thread_ts: str, channel_id: str, ts: str = None
+    ) -> bool:
         try:
+            if not thread_ts:
+                thread_ts = ts
+
             response = self.slack_web_client.conversations_replies(
                 channel=channel_id, ts=thread_ts
             )
@@ -369,7 +378,6 @@ class MessageHandler:
         else:
             # response = self.llm_client.format_response_in_markdown(response)
             say(
-                client=client,
                 channel=event["channel"],
                 text=response,
                 thread_ts=event["ts"],

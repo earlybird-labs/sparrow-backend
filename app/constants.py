@@ -1,3 +1,5 @@
+# constants.py
+
 text_file_types = [
     "c",
     "cs",
