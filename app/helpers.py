@@ -1,10 +1,27 @@
 import json
 
 from .logger import logger
-from .llm import transcribe_audio, describe_vision_anthropic
+from .llm import (
+    transcribe_audio,
+    describe_vision_anthropic,
+    create_vectorstore,
+    upload_file,
+    add_file_to_vectorstore,
+    get_vectorstore,
+)
+from .services import (
+    add_vectorstore_id_to_thread,
+    find_db_thread,
+    find_db_thread_by_id,
+    update_thread,
+)
+
+from .constants import text_file_types
+
+from .utils import get_file_data, save_file, download_and_save_file
 
 
-def process_file_upload(token, client, message):
+def process_file_upload(token, client, message, thread_id=None):
     """
     Processes the uploaded files and determines if any are audio files.
 
@@ -14,18 +31,47 @@ def process_file_upload(token, client, message):
     :return: Tuple containing a list of processed file data and a boolean indicating if any audio files were processed.
     """
     files = message.get("files")
-    file_data = []
+    file_datas = []
     speech_mode = False
+    vectorstore = False
+
+    print("thread_id", thread_id)
+    print("type(thread_id)", type(thread_id))
+    # actual_thread_id = thread_id["_id"]
+    # print("actual_thread_id", actual_thread_id)
+    thread_in_db = find_db_thread_by_id(thread_id)
+
+    if not thread_in_db:
+        thread_in_db = find_db_thread(message.get("channel"), message.get("ts"))
 
     for file in files:
         file_url, file_type, mimetype = share_file_and_get_url(
             token, client, file.get("id")
         )
-        file_data.append(process_file_content(file_url, file_type, mimetype, message))
+
+        print("file_url", file_url)
+        print("file_type", file_type)
+        print("mimetype", mimetype)
+
+        file_data = process_file_content(file_url, file_type, mimetype, message)
+
+        if file_data.get("upload_type") == "text_file":
+            vectorstore = True
+            file_id = file_data.get("content")
+            vectorstore_id = thread_in_db.get("vectorstore_id")
+            update_thread(
+                thread_in_db, {"num_files": thread_in_db.get("num_files", 0) + 1}
+            )
+            add_file_to_vectorstore(vectorstore_id, file_id)
+        else:
+
+            file_datas.append(
+                process_file_content(file_url, file_type, mimetype, message)
+            )
         speech_mode |= file_type in ["webm", "mp4", "mp3", "wav", "m4a"]
         revoke_file_public_access(token, client, file.get("id"))
 
-    return file_data, speech_mode
+    return file_datas, speech_mode, vectorstore
 
 
 def share_file_and_get_url(token, client, file_id):
@@ -82,9 +128,25 @@ def process_file_content(file_url, file_type, mimetype, message):
             "upload_type": "audio",
             "content": transcribe_audio(file_url, file_type),
         }
+    elif file_type in text_file_types:
+        logger.info("Processing text file")
+        file_path = download_and_save_file(file_url, file_type)
+        if file_path:
+            upload_response = upload_file(file_path)
+            if upload_response and hasattr(upload_response, "id"):
+                file_id = upload_response.id
+                print(file_id)
+                return {
+                    "upload_type": "text_file",
+                    "content": file_id,
+                }
+            else:
+                logger.error("Failed to upload file or invalid upload response")
+        else:
+            logger.error("File download failed or file path is None")
     else:
         logger.error(f"Unsupported file type: {file_type}")
-        return None
+    return None
 
 
 def revoke_file_public_access(token, client, file_id):

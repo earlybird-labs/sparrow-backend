@@ -7,6 +7,7 @@ class RequestType(enum.Enum):
     feature_request = "feature_request"
     bug_report = "bug_report"
     general_request = "general_request"
+    ai_conversation = "ai_conversation"
     conversation = "conversation"
 
 
