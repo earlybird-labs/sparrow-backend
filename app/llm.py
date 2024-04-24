@@ -65,7 +65,7 @@ def upload_file(file_url):
     response = openai_client.files.create(
         file=open(file_url, "rb"), purpose="assistants"
     )
-    time.sleep(10)
+    time.sleep(3)
     return response
 
 
@@ -73,7 +73,7 @@ def get_vectorstore(vectorstore_id):
     return openai_client.beta.vector_stores.retrieve(vectorstore_id)
 
 
-def create_vectorstore(name, lifespan_days=7):
+def create_vectorstore(name, lifespan_days=3):
     return openai_client.beta.vector_stores.create(
         name=name,
         expires_after={"anchor": "last_active_at", "days": lifespan_days},
