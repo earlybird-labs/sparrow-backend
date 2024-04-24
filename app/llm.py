@@ -161,11 +161,11 @@ class LLMClient:
         try:
             logger.info(f"Generating LLM response with {client}")
             print(messages)
-            formatted_messages = fetch_and_format_thread_messages(messages)
+            # formatted_messages = fetch_and_format_thread_messages(messages)
             response = client.chat.completions.create(
                 model=model,
                 temperature=temperature,
-                messages=formatted_messages,
+                messages=messages,
             )
             return AIResponse(ai_response=response.choices[0].message.content)
         except Exception as e:

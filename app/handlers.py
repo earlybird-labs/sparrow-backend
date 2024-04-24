@@ -22,6 +22,8 @@ class MessageHandler:
         self, slack_client: SlackClient, llm_client: LLMClient, database: Database
     ):
         self.slack_client = slack_client
+        self.slack_web_client = slack_client.client.client
+        self.bot_id = self.slack_web_client.auth_test()["user_id"]
         self.llm_client = llm_client
         self.database = database
         self.ephemeral_context = {}
@@ -29,15 +31,11 @@ class MessageHandler:
     def handle_message(self, ack, client, event, message, say):
         ack()  # Correctly await the ack() coroutine
 
-        # Await the auth_test() coroutine and then access its result
-        auth_test_result = client.auth_test()
-        bot_id = auth_test_result["user_id"]
-
         ignore_list = ["message_deleted", "message_changed"]
 
         if event.get("subtype") not in ignore_list:
             logger.info(f"event:\n{json.dumps(event, indent=4)}")
-            self._process_message(client, say, event, message, bot_id)
+            self._process_message(client, say, event, message, self.bot_id)
 
     def _process_message(self, client, say, event, message, bot_id):
         bot_mention = bot_id in message.get("text", "")
@@ -94,7 +92,7 @@ class MessageHandler:
             )
             and not bot_mention
             and thread_ts is None
-        )
+        ) or self._bot_already_in_thread(thread_ts, message.get("channel"))
 
         if request_detected:
             logger.info("PM request detected")
@@ -169,10 +167,8 @@ class MessageHandler:
     def handle_create_jira_no(self, ack, body, client, say, respond):
         ack()
 
-        bot_id = client.auth_test()["user_id"]
-
         respond(
-            text=f"No worries! If you need any help just use <@{bot_id}> for help! :ebl:",
+            text=f"No worries! If you need any help just use <@{self.bot_id}> for help! :ebl:",
             thread_ts=body["container"]["message_ts"],
             delete_original=True,
         )
@@ -319,15 +315,14 @@ class MessageHandler:
 
     def _bot_already_in_thread(self, thread_ts: str, channel_id: str) -> bool:
         try:
-            bot_id = self.slack_client.client.auth_test()["user_id"]
-            response = self.slack_client.client.conversations_replies(
+            response = self.slack_web_client.conversations_replies(
                 channel=channel_id, ts=thread_ts
             )
             messages = response.get("messages", [])
             for message in messages:
-                if message.get("user") == bot_id or f"<@{bot_id}>" in message.get(
-                    "text", ""
-                ):
+                if message.get(
+                    "user"
+                ) == self.bot_id or f"<@{self.bot_id}>" in message.get("text", ""):
                     return True
             return False
         except Exception as e:
@@ -372,11 +367,11 @@ class MessageHandler:
                 client, event["channel"], response, thread_ts=event["ts"]
             )
         else:
-            formatted_response = self.llm_client.format_response_in_markdown(response)
-            self.slack_client.say(
+            # response = self.llm_client.format_response_in_markdown(response)
+            say(
                 client=client,
                 channel=event["channel"],
-                text=formatted_response,
+                text=response,
                 thread_ts=event["ts"],
             )
 
@@ -387,7 +382,7 @@ class MessageHandler:
             file_path = "tmp/speech.mp3"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             title = self.llm_client.create_title_from_transcript(ai_response)
-            self.slack_client.upload_file(
+            self.slack_web_client.files_upload_v2(
                 channel=channel,
                 file_path=file_path,
                 title=title,
