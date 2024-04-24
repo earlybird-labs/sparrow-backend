@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from .handlers import MessageHandler
+from .handlers.message_handler import MessageHandler
 from .slack_api import SlackClient
 from .llm import LLMClient
 from .database import Database
