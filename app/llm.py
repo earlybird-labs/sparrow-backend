@@ -57,6 +57,7 @@ system_prompt_map = {
     "bug_report": project_manager,
     "conversation": general,
     "general_request": general,
+    "ai_conversation": general,
 }
 
 

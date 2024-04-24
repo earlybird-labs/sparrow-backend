@@ -41,6 +41,9 @@ def process_file_upload(token, client, message, thread_id=None):
     # print("actual_thread_id", actual_thread_id)
     thread_in_db = find_db_thread_by_id(thread_id)
 
+    if not thread_in_db:
+        thread_in_db = find_db_thread(message.get("channel"), message.get("ts"))
+
     for file in files:
         file_url, file_type, mimetype = share_file_and_get_url(
             token, client, file.get("id")

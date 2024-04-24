@@ -12,6 +12,7 @@ def create_db_thread(channel_id, ts, oai_thread, vectorstore_id=None):
             "ts": ts,
             "oai_thread": oai_thread,
             "vectorstore_id": vectorstore_id,
+            "num_files": 0,
         }
     )
 
