@@ -12,14 +12,10 @@ class Database:
         self.db = self.client[MONGODB_DB]
         self.threads_collection = self.db["threads"]
 
-    def create_db_thread(
-        self, channel: str, thread_ts: str, oai_thread: str, vectorstore_id: str
-    ) -> ObjectId:
+    def create_db_thread(self, channel: str, thread_ts: str) -> ObjectId:
         thread_data = {
             "channel": channel,
             "thread_ts": thread_ts,
-            "oai_thread": oai_thread,
-            "vectorstore_id": vectorstore_id,
             "num_files": 0,
         }
         return self.threads_collection.insert_one(thread_data)
