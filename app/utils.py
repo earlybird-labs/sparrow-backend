@@ -108,6 +108,34 @@ def get_file_data(file_url: str) -> str:
     return file_data
 
 
+def add_user_message_to_messages(messages, user_message):
+    messages.append({"role": "user", "content": user_message})
+    return messages
+
+
+def fetch_thread_messages(client, event):
+    try:
+        thread_ts = event["thread_ts"]
+        channel_id = event["channel"]
+        bot_id = client.auth_test()["user_id"]
+
+        thread_messages_response = client.conversations_replies(
+            channel=channel_id, ts=thread_ts
+        )
+        thread_messages = thread_messages_response["messages"]
+
+        formatted_messages = []
+        for msg in thread_messages:
+            if msg.get("text") != "":
+                role = "assistant" if msg.get("user") == bot_id else "user"
+                formatted_messages.append({"role": role, "content": msg["text"]})
+
+        return formatted_messages
+    except Exception as e:
+        logger.error(f"Error fetching thread messages: {e}")
+        return []
+
+
 def fetch_and_format_thread_messages(client, message):
     """
     Fetches all messages from a thread and formats them.
