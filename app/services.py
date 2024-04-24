@@ -1,8 +1,10 @@
-from .database import MongoDB
+# services.py
+
+from .database import Database
 from .schema import UserSchema
 from bson.objectid import ObjectId
 
-db = MongoDB.get_instance()
+db = Database.get_instance()
 
 
 def create_db_thread(channel_id, ts, oai_thread, vectorstore_id=None):

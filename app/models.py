@@ -1,3 +1,5 @@
+# models.py
+
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import enum
@@ -12,6 +14,6 @@ class RequestType(enum.Enum):
 
 
 class AIResponse(BaseModel):
-    ai_response: str = Field(
+    content: str = Field(
         description="The assistant's response to the user's message.",
     )

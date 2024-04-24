@@ -1,33 +1,39 @@
-from .config import MONGODB_URI, MONGODB_DB
+# database.py
+
+from typing import Dict, Any, Optional
 from pymongo import MongoClient
+from bson import ObjectId
+from .config import MONGODB_DB, MONGODB_URI
 
 
-# MongoDB class to manage MongoDB connections
-class MongoDB:
-    # Singleton instance of MongoDB
-    _instance = None
+class Database:
+    def __init__(self):
+        self.client = MongoClient(MONGODB_URI)
+        self.db = self.client[MONGODB_DB]
+        self.threads_collection = self.db["threads"]
 
-    # Static method to get the singleton instance of MongoDB
-    @staticmethod
-    def get_instance():
-        # If instance is not created, create one
-        if MongoDB._instance is None:
-            # Get the configuration
-            try:
-                # Try to create a MongoDB instance
-                MongoDB._instance = MongoClient(MONGODB_URI)[MONGODB_DB]
-            except Exception as e:
-                # If SSL handshake fails, attempt to reconnect
-                if "SSL handshake failed" in str(e):
-                    print("SSL handshake failed, attempting to reconnect...")
-                    # Attempt to reconnect
-                    MongoDB._instance = MongoClient(MONGODB_URI)[MONGODB_DB]
-        # Return the singleton instance
-        return MongoDB._instance
+    def create_db_thread(self, channel: str, thread_ts: str) -> ObjectId:
+        thread_data = {
+            "channel": channel,
+            "thread_ts": thread_ts,
+            "num_files": 0,
+        }
+        return self.threads_collection.insert_one(thread_data)
+
+    def find_db_thread(self, channel: str, thread_ts: str) -> Optional[Dict[str, Any]]:
+        return self.threads_collection.find_one(
+            {"channel": channel, "thread_ts": thread_ts}
+        )
+
+    def find_db_thread_by_id(self, thread_id: ObjectId) -> Optional[Dict[str, Any]]:
+        return self.threads_collection.find_one({"_id": thread_id})
+
+    def update_thread(
+        self, thread: Dict[str, Any], update_data: Dict[str, Any]
+    ) -> None:
+        self.threads_collection.update_one(
+            {"_id": thread["_id"]}, {"$set": update_data}
+        )
 
 
-if __name__ == "__main__":
-    # Instantiate the MongoDB service
-    mongodb_service = MongoDB.get_instance()
-    # Print the instance for testing
-    print(mongodb_service)
+db = Database()

@@ -1,3 +1,5 @@
+# logger.py
+
 import logging
 
 
@@ -10,7 +12,7 @@ class Logger:
         self,
         name=__name__,
         level=logging.INFO,
-        format_string="%(asctime)s - %(levelname)s - %(message)s",
+        format_string="%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d - %(funcName)s - %(message)s",
     ):
         """
         Initializes the Logger instance with the specified name, level, and format.
