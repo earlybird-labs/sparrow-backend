@@ -160,14 +160,14 @@ class LLMClient:
     ) -> Optional[AIResponse]:
         try:
             logger.info(f"Generating LLM response with {client}")
-            print(messages)
             # formatted_messages = fetch_and_format_thread_messages(messages)
             response = client.chat.completions.create(
                 model=model,
                 temperature=temperature,
                 messages=messages,
             )
-            return AIResponse(ai_response=response.choices[0].message.content)
+            logger.info(f"Response: {response}")
+            return AIResponse(content=response.choices[0].message.content)
         except Exception as e:
             logger.error(f"Error generating LLM response: {e}")
             return None
@@ -225,7 +225,7 @@ class LLMClient:
                 temperature=0.0,
                 client_name="groq",
                 structured=False,
-            ).ai_response.strip()
+            ).content.strip()
         except Exception as e:
             logger.error(f"Error formatting response in markdown: {e}")
             return None
@@ -242,7 +242,7 @@ class LLMClient:
                 ],
                 client_name="groq",
                 structured=False,
-            ).ai_response
+            ).content.strip()
         except Exception as e:
             logger.error(f"Error creating title from transcript: {e}")
             return None
