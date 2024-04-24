@@ -3,7 +3,12 @@
 from typing import List, Dict, Any, Optional
 from .models import AIResponse, RequestType
 from .prompts import general, project_manager, classify_request, formatting_prompt
-from .utils import get_file_data, save_file, delete_file
+from .utils import (
+    get_file_data,
+    save_file,
+    delete_file,
+    fetch_and_format_thread_messages,
+)
 from .logger import logger
 from .config import OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, TOGETHER_API_KEY
 
@@ -155,10 +160,12 @@ class LLMClient:
     ) -> Optional[AIResponse]:
         try:
             logger.info(f"Generating LLM response with {client}")
+            print(messages)
+            formatted_messages = fetch_and_format_thread_messages(messages)
             response = client.chat.completions.create(
                 model=model,
                 temperature=temperature,
-                messages=messages,
+                messages=formatted_messages,
             )
             return AIResponse(ai_response=response.choices[0].message.content)
         except Exception as e:
