@@ -4,9 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from slack_sdk import WebClient
 from .logger import logger
 from .llm import LLMClient
-from .database import Database, db
-from .constants import text_file_types
-from .utils import get_file_data, save_file, download_and_save_file
 from .handlers.file_handler import FileHandler
 
 
@@ -19,10 +16,6 @@ def process_message_with_files(
     logger.info("Processing files")
     file_data = file_handler.process_files(message)
     return file_data
-
-
-def check_for_user_scope(user_id: str, user_scope: str) -> bool:
-    return user_scope.split(",").contains(user_id)
 
 
 def format_user_message(message: Dict[str, Any], bot_id: str) -> str:

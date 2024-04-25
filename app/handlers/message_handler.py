@@ -5,7 +5,11 @@ import json
 from ..config import SLACK_USER_TOKEN
 from ..llm import LLMClient
 from ..models import RequestType
-from ..helpers import process_message, format_user_message, add_file_data_to_messages
+from ..helpers import (
+    process_message_with_files,
+    format_user_message,
+    add_file_data_to_messages,
+)
 from ..database import Database
 from ..utils import add_user_message_to_messages, fetch_thread_messages
 from ..logger import logger
@@ -39,31 +43,24 @@ class MessageHandler:
     def _process_message(self, client, say, event, message, bot_id):
         bot_mention = bot_id in message.get("text", "")
         thread_ts = message.get("thread_ts")
-        ts = message.get("ts")
 
-        thread_id = self._get_or_create_thread(message, thread_ts, ts)
-
-        messages = []
-        if message.get("files"):
-            file_data, speech_mode = process_message(
-                SLACK_USER_TOKEN, client, message, self.llm_client
-            )
-            messages = add_file_data_to_messages(messages, file_data)
-
-        user_message = format_user_message(message, bot_id)
-        messages = add_user_message_to_messages(messages, user_message)
+        # ts = message.get("ts")
+        # thread_id = self._get_or_create_thread(message, thread_ts, ts)
 
         if bot_mention:
             logger.info("Handling direct message")
+            messages = self._prepare_file_message(client, message, bot_id)
             self._handle_direct_message(client, say, event, messages)
         elif thread_ts is not None:
             if self._bot_already_in_thread(thread_ts, message.get("channel")):
                 logger.info("Handling thread message")
+                messages = self._prepare_file_message(client, message, bot_id)
                 self._handle_thread_message(client, say, event, messages)
         else:
-            request_type = self._classify_request(event["text"])
-            logger.info(f"request_type: {request_type}")
-            self._handle_request(request_type, client, say, event, message, bot_id)
+            if message.get("text"):
+                request_type = self._classify_request(event["text"])
+                logger.info(f"request_type: {request_type}")
+                self._handle_request(request_type, client, say, event, message, bot_id)
 
     def _handle_direct_message(self, client, say, event, messages):
         response = self.llm_client.llm_response(messages)
@@ -75,6 +72,22 @@ class MessageHandler:
         messages = thread_messages + messages
         logger.info(f"Thread Messages:\n{json.dumps(messages, indent=4)}")
         response = self.llm_client.llm_response(messages)
+        self._send_response(response, client, say, event)
+
+    def _prepare_file_message(self, client, message, bot_id):
+        messages = []
+        if message.get("files"):
+            file_data = process_message_with_files(
+                SLACK_USER_TOKEN, client, message, self.llm_client
+            )
+            messages = add_file_data_to_messages(messages, file_data)
+
+        user_message = format_user_message(message, bot_id)
+        messages = add_user_message_to_messages(messages, user_message)
+        return messages
+
+    def _handle_only_file_message(self, client, say, event, messages):
+        response = self.llm_client.llm_response(messages, file_only=True)
         self._send_response(response, client, say, event)
 
     def _classify_request(self, text: str) -> RequestType:
