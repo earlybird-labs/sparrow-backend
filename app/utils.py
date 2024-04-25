@@ -8,7 +8,7 @@ import httpx
 import base64
 from functools import wraps
 
-from typing import Optional
+from typing import Dict, Optional
 
 from .logger import logger
 
@@ -66,9 +66,11 @@ def save_file(file_url: str, file_type: str) -> str:
     return file_path
 
 
-def download_and_save_file(file_url: str, file_type: str) -> Optional[str]:
+def download_and_save_file(
+    file_url: str, file_type: str, headers: Optional[Dict[str, str]] = None
+) -> Optional[str]:
     try:
-        response = requests.get(file_url, stream=True)
+        response = requests.get(file_url, headers=headers, stream=True)
         timestamp = int(time.time())
         if response.status_code == 200:
             file_path = f"/tmp/{timestamp}.{file_type}"
@@ -96,21 +98,29 @@ def delete_file(file_path: str) -> None:
     os.remove(file_path)
 
 
-def get_file_data(file_url: str) -> str:
+def get_file_data(file_path: str, remote: bool = False) -> str:
     """
     Fetches file data from a URL and encodes it in base64.
 
     :param file_url: URL of the file to fetch.
     :return: Base64 encoded string of the file data.
     """
-    response = httpx.get(file_url)
-    file_data = base64.b64encode(response.content).decode("utf-8")
+    if remote:
+        response = httpx.get(file_path)
+        file_data = base64.b64encode(response.content).decode("utf-8")
+    else:
+        with open(file_path, "rb") as file:
+            file_data = base64.b64encode(file.read()).decode("utf-8")
     return file_data
 
 
 def add_user_message_to_messages(messages, user_message):
     messages.append({"role": "user", "content": user_message})
     return messages
+
+
+def fetch_channel_messages(client, channel_id):
+    return client.conversations_history(channel=channel_id, limit=3)
 
 
 def fetch_thread_messages(client, event):

@@ -19,6 +19,7 @@ text_file_types = [
     "tex",
     "ts",
     "txt",
+    "text",
     "xml",
     "yaml",
     "yml",
