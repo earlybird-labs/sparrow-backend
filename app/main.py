@@ -13,7 +13,10 @@ from .llm import LLMClient
 from .database import Database
 
 
-app = App(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
+app = App(
+    token=SLACK_BOT_TOKEN,
+    signing_secret=SLACK_SIGNING_SECRET,
+)
 slack_client = SlackClient(app)
 llm_client = LLMClient()
 database = Database()
@@ -65,6 +68,6 @@ def handle_onboarding_modal_submit(ack, body, view):
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 3000))
+    port = int(os.environ.get("PORT", 8081))
     print(f"Starting app on port {port}")
     app.start(port=port)

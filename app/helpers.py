@@ -10,16 +10,19 @@ from .utils import get_file_data, save_file, download_and_save_file
 from .handlers.file_handler import FileHandler
 
 
-def process_message(
-    token: str,
+def process_message_with_files(
     client: WebClient,
     message: Dict[str, Any],
     llm_client: LLMClient,
 ) -> Tuple[List[Dict[str, str]], bool]:
-    file_handler = FileHandler(token, client, llm_client)
+    file_handler = FileHandler(client, llm_client)
     logger.info("Processing files")
-    file_data, speech_mode = file_handler.process_files(message)
-    return file_data, speech_mode
+    file_data = file_handler.process_files(message)
+    return file_data
+
+
+def check_for_user_scope(user_id: str, user_scope: str) -> bool:
+    return user_scope.split(",").contains(user_id)
 
 
 def format_user_message(message: Dict[str, Any], bot_id: str) -> str:

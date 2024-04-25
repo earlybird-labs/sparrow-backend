@@ -211,6 +211,7 @@ class LLMClient:
             logger.error(f"Attempt {attempt} failed for {client_name}. Retrying...")
             if attempt < retry_count:
                 client_name = "openai"  # Switch to openai for retry
+                model = self.client_model_map[client_name]["model"]
             attempt += 1
 
         return None  # Return None if all retries fail
@@ -285,7 +286,7 @@ class LLMClient:
                 prompt = f"The user's request is {message}. Your job is to describe this image in as much detail as possible as it relates to the user's request to be used in your response."
             else:
                 prompt = "Describe this image in as much detail as possible. Extract as much information as possible from the image."
-            image_data = get_file_data(file_url)
+            image_data = get_file_data(file_url, remote=False)
             messages = [
                 {
                     "role": "user",
