@@ -2,10 +2,12 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 from slack_sdk import WebClient
+from llama_index.core import SimpleDirectoryReader
+
 from ..logger import logger
 from ..llm import LLMClient
 from ..constants import text_file_types
-from ..utils import download_and_save_file
+from ..utils import download_and_save_file, delete_file
 
 
 class FileHandler:
@@ -36,7 +38,10 @@ class FileHandler:
 
     def _share_file_and_get_url(self, file_id: str) -> Tuple[str, str, str]:
         file_info = self.client.files_info(file=file_id).data["file"]
-        self.client.files_sharedPublicURL(token=self.token, file=file_id)
+        try:
+            self.client.files_sharedPublicURL(token=self.token, file=file_id)
+        except:
+            logger.warning(f"Failed to share file {file_id}")
         return (
             self._construct_file_url(file_info),
             file_info["filetype"],
@@ -68,7 +73,8 @@ class FileHandler:
         elif file_type in text_file_types:
             file_path = download_and_save_file(file_url, file_type)
             if file_path:
-                text_content = self.llm_client.extract_text_from_file(file_path)
+                text_content = self._extract_text_from_file(file_path)
+                delete_file(file_path)
                 return {
                     "upload_type": "text_file",
                     "content": text_content,
@@ -76,6 +82,21 @@ class FileHandler:
         else:
             logger.warning(f"Unsupported file type: {file_type}")
         return None
+
+    def _extract_text_from_file(self, file_path: str) -> str:
+        reader = SimpleDirectoryReader(input_files=[file_path])
+        documents = reader.load_data()
+        text = []
+        current_file = None
+        for doc in documents:
+            file_name = doc.metadata.get("file_name", "")
+            if current_file != file_name:
+                text.append(f"\n\nFile: {file_name}\n")
+                current_file = file_name
+            text.append(doc.text)
+
+        text_str = "\n".join(text)
+        return text_str.strip()
 
     def _revoke_file_public_access(self, file_id: str) -> None:
         self.client.files_revokePublicURL(token=self.token, file=file_id)

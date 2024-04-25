@@ -1,13 +1,13 @@
-# constants.py
-
 text_file_types = [
     "c",
-    "cs",
     "cpp",
+    "cs",
+    "css",
     "doc",
     "docx",
     "html",
     "java",
+    "js",
     "json",
     "md",
     "pdf",
@@ -15,10 +15,11 @@ text_file_types = [
     "pptx",
     "py",
     "rb",
-    "tex",
-    "txt",
-    "css",
-    "js",
     "sh",
+    "tex",
     "ts",
+    "txt",
+    "xml",
+    "yaml",
+    "yml",
 ]

@@ -27,10 +27,13 @@ class MessageHandler:
     def handle_message(self, ack, client, event, message, say):
         ack()  # Correctly await the ack() coroutine
 
-        ignore_list = ["message_deleted", "message_changed"]
+        ignore_list = ["message_deleted", "message_changed", "channel_join"]
 
-        if event.get("subtype") not in ignore_list:
-            logger.info(f"event:\n{json.dumps(event, indent=4)}")
+        logger.info(f"event:\n{json.dumps(event, indent=4)}")
+
+        subtype = event.get("subtype")
+
+        if subtype not in ignore_list:
             self._process_message(client, say, event, message, self.bot_id)
 
     def _process_message(self, client, say, event, message, bot_id):
@@ -64,7 +67,7 @@ class MessageHandler:
 
     def _handle_direct_message(self, client, say, event, messages):
         response = self.llm_client.llm_response(messages)
-        logger.info(f"Direct Message Response:\n{json.dumps(response, indent=4)}")
+        logger.info(f"Direct Message:\n{json.dumps(messages, indent=4)}")
         self._send_response(response, client, say, event)
 
     def _handle_thread_message(self, client, say, event, messages):
