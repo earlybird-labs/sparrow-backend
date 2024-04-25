@@ -11,6 +11,7 @@ class Database:
         self.client = MongoClient(MONGODB_URI)
         self.db = self.client[MONGODB_DB]
         self.threads_collection = self.db["threads"]
+        self.users_collection = self.db["users"]
 
     def create_db_thread(self, channel: str, thread_ts: str) -> ObjectId:
         thread_data = {
@@ -27,6 +28,11 @@ class Database:
 
     def find_db_thread_by_id(self, thread_id: ObjectId) -> Optional[Dict[str, Any]]:
         return self.threads_collection.find_one({"_id": thread_id})
+
+    def add_user(self, user_id: str, access_token: str) -> None:
+        self.users_collection.insert_one(
+            {"slack_user_id": user_id, "slack_access_token": access_token}
+        )
 
     def update_thread(
         self, thread: Dict[str, Any], update_data: Dict[str, Any]

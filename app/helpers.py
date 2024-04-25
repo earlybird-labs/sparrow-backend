@@ -8,11 +8,12 @@ from .handlers.file_handler import FileHandler
 
 
 def process_message_with_files(
+    token: str,
     client: WebClient,
     message: Dict[str, Any],
     llm_client: LLMClient,
 ) -> Tuple[List[Dict[str, str]], bool]:
-    file_handler = FileHandler(client, llm_client)
+    file_handler = FileHandler(token, client, llm_client)
     logger.info("Processing files")
     file_data = file_handler.process_files(message)
     return file_data

@@ -47,8 +47,9 @@ class UserSchema(BaseModel):
 
     id: PydanticObjectId = Field(alias="_id")
     slack_user_id: str
-    name: str
-    email: str
+    slack_access_token: str
+    name: Optional[str]
+    email: Optional[str]
     metadata: Optional[Dict[str, Any]] = {}
 
 

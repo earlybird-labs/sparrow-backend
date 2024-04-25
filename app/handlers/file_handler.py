@@ -13,7 +13,8 @@ from ..utils import download_and_save_file, delete_file
 
 
 class FileHandler:
-    def __init__(self, client: WebClient, llm_client: LLMClient):
+    def __init__(self, token: str, client: WebClient, llm_client: LLMClient):
+        self.token = token
         self.client = client
         self.llm_client = llm_client
 

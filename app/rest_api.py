@@ -5,6 +5,7 @@ import asyncio
 import json
 
 from .config import SLACK_APP_ID, SLACK_APP_SECRET, SLACK_REDIRECT_URI
+from .database import db
 
 app = FastAPI()
 
@@ -29,8 +30,9 @@ async def oauth_redirect(request: Request):
     ).json()
 
     if response.get("ok"):
-        with open("response.json", "w") as f:
-            json.dump(response, f)
+        authed_user = response.get("authed_user")
+        if authed_user:
+            db.add_user(authed_user.get("id"), authed_user.get("access_token"))
         # Return a simple HTML response indicating success
         content = f"<html><body><h1>Authentication successful!</h1><p>Your access token has been saved securely.</p></body></html>"
         return HTMLResponse(content=content, status_code=200)
