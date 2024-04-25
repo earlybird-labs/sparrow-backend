@@ -7,7 +7,7 @@ from llama_index.core import SimpleDirectoryReader
 from ..logger import logger
 from ..llm import LLMClient
 from ..constants import text_file_types
-from ..utils import download_and_save_file
+from ..utils import download_and_save_file, delete_file
 
 
 class FileHandler:
@@ -74,6 +74,7 @@ class FileHandler:
             file_path = download_and_save_file(file_url, file_type)
             if file_path:
                 text_content = self._extract_text_from_file(file_path)
+                delete_file(file_path)
                 return {
                     "upload_type": "text_file",
                     "content": text_content,
