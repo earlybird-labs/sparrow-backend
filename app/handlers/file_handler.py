@@ -25,7 +25,7 @@ class FileHandler:
 
             for file in files:
                 file_url, file_type, mimetype = (
-                    file["url_private"],
+                    file["url_private_download"],
                     file["filetype"],
                     file["mimetype"],
                 )
@@ -56,8 +56,8 @@ class FileHandler:
             if file_path:
                 if file_type in ["jpg", "jpeg", "png", "webp", "gif"]:
                     logger.info("Processing image")
-                    file_content = self.llm_client.describe_vision_anthropic(
-                        file_path, mimetype, message.get("text")
+                    file_content = self.llm_client.describe_image(
+                        file_path, mimetype, message.get("text"), mode="visualizer"
                     )
                     upload_type = "image"
                 elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:

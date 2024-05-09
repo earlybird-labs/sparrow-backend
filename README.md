@@ -2,6 +2,7 @@
 
 This Slack bot is designed to assist users in a Slack workspace by responding to messages, opening modals for input, and handling bug reports. It leverages the Slack Bolt framework for Python and integrates with language models for generating responses.
 
+
 ## Features
 
 - **Message Handling**: Responds to direct messages and messages in threads, including those with file attachments.

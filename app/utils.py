@@ -6,11 +6,12 @@ import re
 import requests
 import httpx
 import base64
+import json
 from functools import wraps
 
 from typing import Dict, Optional
 
-from .logger import logger
+from app.logger import logger
 
 
 def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
@@ -123,10 +124,81 @@ def fetch_channel_messages(client, channel_id):
     return client.conversations_history(channel=channel_id, limit=3)
 
 
+def fetch_thread_ts_from_message_ts(client, channel_id, message_ts):
+    """
+    Fetches the thread timestamp from a given message timestamp in a Slack channel.
+
+    :param client: The Slack client instance used to interact with the Slack API.
+    :param channel_id: The ID of the channel containing the message.
+    :param message_ts: The timestamp of the message for which to find the thread.
+    :return: The thread timestamp if found, otherwise None.
+    """
+    try:
+        # Fetch the thread messages using the conversations.replies API method
+        response = client.conversations_replies(channel=channel_id, ts=message_ts)
+        if response["ok"] and response["messages"]:
+            # The first message in the list is the parent message of the thread
+            thread_ts = response["messages"][0]["ts"]
+            return thread_ts
+        else:
+            logger.error(f"No messages found in thread for message_ts: {message_ts}")
+    except Exception as e:
+        logger.error(f"Exception occurred while fetching thread ts: {e}")
+    return None
+
+
+# def fetch_thread_messages(client, event):
+#     try:
+#         # Check if it's a reaction event and extract ts accordingly
+#         if event["type"] == "reaction_added" and event["item"]["type"] == "message":
+
+#             thread_ts = fetch_thread_ts_from_message_ts(
+#                 client, event["item"]["channel"], event["item"]["ts"]
+#             )
+#         else:
+#             thread_ts = event.get("thread_ts", event["ts"])
+
+#         channel_id = event["item"]["channel"]
+#         bot_id = client.auth_test()["user_id"]
+
+#         thread_messages_response = client.conversations_replies(
+#             channel=channel_id, ts=thread_ts
+#         )
+#         thread_messages = thread_messages_response["messages"]
+
+#         formatted_messages = []
+#         for msg in thread_messages:
+#             if msg.get("text") != "":
+#                 role = "assistant" if msg.get("user") == bot_id else "user"
+#                 formatted_messages.append({"role": role, "content": msg["text"]})
+
+#         return formatted_messages
+#     except Exception as e:
+#         logger.error(f"Error fetching thread messages: {e}")
+#         return []
+
+
 def fetch_thread_messages(client, event):
     try:
-        thread_ts = event["thread_ts"]
-        channel_id = event["channel"]
+        thread_ts = event.get("thread_ts")
+        if thread_ts is None and event.get("type") == "reaction_added":
+            channel_id = event["item"]["channel"]
+            message_ts = event["item"]["ts"]
+            replies_response = client.conversations_replies(
+                channel=channel_id, ts=message_ts
+            )
+            if replies_response.get("ok") and replies_response["messages"]:
+                for message in replies_response["messages"]:
+                    if "thread_ts" in message:
+                        thread_ts = message["thread_ts"]
+                        break
+
+        if thread_ts is None:
+            return []
+
+        if channel_id is None:
+            channel_id = event["channel"]
+
         bot_id = client.auth_test()["user_id"]
 
         thread_messages_response = client.conversations_replies(

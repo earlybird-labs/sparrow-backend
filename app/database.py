@@ -3,7 +3,7 @@
 from typing import Dict, Any, Optional
 from pymongo import MongoClient
 from bson import ObjectId
-from .config import MONGODB_DB, MONGODB_URI
+from app.config import MONGODB_DB, MONGODB_URI
 
 
 class Database:

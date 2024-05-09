@@ -4,8 +4,8 @@ import requests
 import asyncio
 import json
 
-from .config import SLACK_APP_ID, SLACK_APP_SECRET, SLACK_REDIRECT_URI
-from .database import db
+from app.config import SLACK_APP_ID, SLACK_APP_SECRET, SLACK_REDIRECT_URI
+from app.database import db
 
 app = FastAPI()
 

@@ -45,17 +45,18 @@ def generate_jira_issues_section(issues):
     return blocks
 
 
-# Example usage:
-section = generate_jira_issue_section(
-    key="ISSUE-123",
-    summary="Implement new login feature",
-    description="Implement OAuth login feature for the application.",
-    status="In Progress",
-    issue_type="Feature",
-    assignee="John Doe",
-    priority="High",
-    url="https://jira.example.com/browse/ISSUE-123",
-)
+if __name__ == "__main__":
+    # Example usage:
+    section = generate_jira_issue_section(
+        key="ISSUE-123",
+        summary="Implement new login feature",
+        description="Implement OAuth login feature for the application.",
+        status="In Progress",
+        issue_type="Feature",
+        assignee="John Doe",
+        priority="High",
+        url="https://jira.example.com/browse/ISSUE-123",
+    )
 
-with open("issue.json", "w") as f:
-    json.dump(section.build(), f)
+    with open("issue.json", "w") as f:
+        json.dump(section.build(), f)

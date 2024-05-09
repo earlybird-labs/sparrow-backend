@@ -2,15 +2,15 @@
 
 import os
 from slack_bolt import App
-from .config import SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET
+from app.config import SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET
 from dotenv import load_dotenv
 
-load_dotenv()
+from app.handlers.message_handler import MessageHandler
+from app.slack_api import SlackClient
+from app.llm import LLMClient
+from app.database import Database
 
-from .handlers.message_handler import MessageHandler
-from .slack_api import SlackClient
-from .llm import LLMClient
-from .database import Database
+load_dotenv()
 
 
 app = App(
@@ -39,10 +39,20 @@ def handle_reaction_added(ack, client, event):
     message_handler.handle_reaction_added(ack, client, event)
 
 
+@app.command("/opinion")
+def handle_opinion(ack, client, respond, command):
+    message_handler.handle_opinion(ack, client, respond, command)
+
+
 # Command handlers
 @app.command("/sparrow")
 def handle_sparrow(ack, client, respond, command):
     message_handler.handle_sparrow(ack, client, respond, command)
+
+
+@app.command("/learn")
+def handle_learn(ack, client, respond, command):
+    message_handler.handle_learn(ack, client, respond, command)
 
 
 # Action handlers
