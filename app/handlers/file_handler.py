@@ -1,5 +1,7 @@
 # file_handlers.py
 
+import json
+import requests
 from typing import Any, Dict, List, Optional, Tuple
 from slack_sdk import WebClient
 from llama_index.core import SimpleDirectoryReader
@@ -16,37 +18,28 @@ class FileHandler:
         self.client = client
         self.llm_client = llm_client
 
-    def process_files(
-        self, message: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, str]], bool]:
-        files = message.get("files", [])
-        file_data = []
-        speech_mode = False
-
-        for file in files:
-            file_url, file_type, mimetype = self._share_file_and_get_url(file["id"])
-            file_content = self._process_file_content(
-                file_url, file_type, mimetype, message
-            )
-            if file_content:
-                file_data.append(file_content)
-                speech_mode |= file_type in ["webm", "mp4", "mp3", "wav", "m4a"]
-
-            self._revoke_file_public_access(file["id"])
-
-        return file_data, speech_mode
-
-    def _share_file_and_get_url(self, file_id: str) -> Tuple[str, str, str]:
-        file_info = self.client.files_info(file=file_id).data["file"]
+    def process_files(self, message: Dict[str, Any]) -> List[Dict[str, str]]:
         try:
-            self.client.files_sharedPublicURL(token=self.token, file=file_id)
-        except:
-            logger.warning(f"Failed to share file {file_id}")
-        return (
-            self._construct_file_url(file_info),
-            file_info["filetype"],
-            file_info["mimetype"],
-        )
+            files = message.get("files", [])
+            file_data = []
+
+            for file in files:
+                file_url, file_type, mimetype = (
+                    file["url_private_download"],
+                    file["filetype"],
+                    file["mimetype"],
+                )
+                file_content = self._process_file_content(
+                    file_url, file_type, mimetype, message
+                )
+                if file_content:
+                    file_data.append(file_content)
+                    # speech_mode |= file_type in ["webm", "mp4", "mp3", "wav", "m4a"]
+
+            return file_data
+        except Exception as e:
+            logger.error(f"Failed to process files: {e}")
+            return []
 
     def _construct_file_url(self, file_info: Dict[str, Any]) -> str:
         public_link = file_info["permalink_public"]
@@ -57,31 +50,47 @@ class FileHandler:
     def _process_file_content(
         self, file_url: str, file_type: str, mimetype: str, message: Dict[str, Any]
     ) -> Optional[Dict[str, str]]:
-        if file_type in ["jpg", "jpeg", "png", "webp", "gif"]:
-            logger.info("Processing image")
-            return {
-                "upload_type": "image",
-                "content": self.llm_client.describe_vision_anthropic(
-                    file_url, mimetype, message.get("text")
-                ),
-            }
-        elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:
-            return {
-                "upload_type": "audio",
-                "content": self.llm_client.transcribe_audio(file_url, file_type),
-            }
-        elif file_type in text_file_types:
-            file_path = download_and_save_file(file_url, file_type)
+        headers = {"Authorization": f"Bearer {self.token}"}
+        try:
+            file_path = download_and_save_file(file_url, file_type, headers)
             if file_path:
-                text_content = self._extract_text_from_file(file_path)
+                if file_type in ["jpg", "jpeg", "png", "webp", "gif"]:
+                    logger.info("Processing image")
+                    file_content = self.llm_client.describe_image(
+                        file_path, mimetype, message.get("text"), mode="visualizer"
+                    )
+                    upload_type = "image"
+                elif file_type in ["webm", "mp4", "mp3", "wav", "m4a"]:
+                    logger.info("Processing audio")
+                    file_content = self.llm_client.transcribe_audio(file_url, file_type)
+                    upload_type = "audio"
+                elif file_type in text_file_types:
+                    logger.info("Processing text file")
+                    file_content = self._extract_text_from_file(file_path)
+                    upload_type = "text_file"
+                else:
+                    logger.warning(f"Unsupported file type: {file_type}")
+                    file_content = "Unsupported file type"
+                    upload_type = "unsupported"
+
                 delete_file(file_path)
-                return {
-                    "upload_type": "text_file",
-                    "content": text_content,
-                }
-        else:
-            logger.warning(f"Unsupported file type: {file_type}")
-        return None
+
+            else:
+                logger.error(f"Failed to download file: {file_url}")
+
+            return {
+                "upload_type": upload_type,
+                "content": file_content,
+            }
+        except Exception as e:
+            logger.error(f"Failed to process file: {e}")
+            file_content = "Failed to process file with error: " + str(e)
+            upload_type = "failed"
+
+            return {
+                "upload_type": upload_type,
+                "content": file_content,
+            }
 
     def _extract_text_from_file(self, file_path: str) -> str:
         reader = SimpleDirectoryReader(input_files=[file_path])
@@ -97,6 +106,3 @@ class FileHandler:
 
         text_str = "\n".join(text)
         return text_str.strip()
-
-    def _revoke_file_public_access(self, file_id: str) -> None:
-        self.client.files_revokePublicURL(token=self.token, file=file_id)

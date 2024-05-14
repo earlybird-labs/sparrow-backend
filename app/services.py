@@ -1,7 +1,7 @@
 # services.py
 
-from .database import Database
-from .schema import UserSchema
+from app.database import Database
+from app.schema import UserSchema
 from bson.objectid import ObjectId
 
 db = Database.get_instance()

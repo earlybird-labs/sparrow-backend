@@ -1,16 +1,24 @@
 # llm.py
 
-from typing import List, Dict, Any, Optional
-from .models import AIResponse, RequestType
-from .prompts import general, project_manager, classify_request, formatting_prompt
-from .utils import (
+import json
+
+from typing import List, Dict, Any, Optional, Type
+from app.models import AIResponse, RequestType, EntityGraph, IssueTicket
+from app.prompts import (
+    general,
+    project_manager,
+    classify_request,
+    formatting_prompt,
+    visualizer_prompt,
+)
+from app.utils import (
     get_file_data,
     save_file,
     delete_file,
     fetch_and_format_thread_messages,
 )
-from .logger import logger
-from .config import OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, TOGETHER_API_KEY
+from app.logger import logger
+from app.config import OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, TOGETHER_API_KEY
 
 import instructor
 from openai import OpenAI
@@ -65,91 +73,8 @@ class LLMClient:
             "conversation": general,
             "general_request": general,
             "ai_conversation": general,
+            "visualizer": visualizer_prompt,
         }
-
-    def upload_file(self, file_url: str) -> Any:
-        return self.openai_client.files.create(
-            file=open(file_url, "rb"), purpose="assistants"
-        )
-
-    def get_vectorstore(self, vectorstore_id: str) -> Any:
-        return self.openai_client.beta.vector_stores.retrieve(vectorstore_id)
-
-    def create_vectorstore(self, name: str, lifespan_days: int = 1) -> Any:
-        return self.openai_client.beta.vector_stores.create(
-            name=name,
-            expires_after={"anchor": "last_active_at", "days": lifespan_days},
-        )
-
-    def add_file_to_vectorstore(self, vectorstore_id: str, file_id: str) -> Any:
-        return self.openai_client.beta.vector_stores.files.create(
-            vector_store_id=vectorstore_id, file_id=file_id
-        )
-
-    def delete_vectorstore(self, vectorstore_id: str) -> Any:
-        return self.openai_client.beta.vector_stores.delete(vectorstore_id)
-
-    def modify_thread(self, thread_id: str, vectorstore_ids: List[str]) -> Any:
-        return self.openai_client.beta.threads.update(
-            thread_id=thread_id,
-            tool_resources={"file_search": {"vector_store_ids": vectorstore_ids}},
-        )
-
-    def create_thread(self) -> Any:
-        return self.openai_client.beta.threads.create()
-
-    def add_message_to_thread(
-        self, thread_id: str, content: str, role: str = "user"
-    ) -> Any:
-        return self.openai_client.beta.threads.messages.create(
-            thread_id=thread_id, role=role, content=content
-        )
-
-    def create_run(
-        self, thread_id: str, assistant_id: str = "asst_2KNsZSP3VAyHcfce8HQB6e9l"
-    ) -> Any:
-        return self.openai_client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-            tools=[{"type": "file_search"}],
-        )
-
-    def retrieve_message(self, message_id: str, thread_id: str) -> str:
-        result = (
-            self.openai_client.beta.threads.messages.retrieve(
-                message_id=message_id,
-                thread_id=thread_id,
-            )
-            .content[0]
-            .text.value
-        )
-        print("result", result)
-        return result
-
-    def run_steps(self, thread_id: str, run_id: str) -> Any:
-        return self.openai_client.beta.threads.runs.steps.list(
-            thread_id=thread_id, run_id=run_id
-        )
-
-    def classify_user_request(
-        self, message: str, client_name: str = "groq"
-    ) -> Optional[RequestType]:
-        try:
-            client = self.client_model_map[client_name]["instructor"]
-            model = self.client_model_map[client_name]["model"]
-            messages = [
-                {"role": "system", "content": classify_request},
-                {"role": "user", "content": message},
-            ]
-            response = client.create(
-                model=model,
-                messages=messages,
-                response_model=RequestType,
-            )
-            return response
-        except Exception as e:
-            logger.error(f"Error classifying user request: {e}")
-            return None
 
     def _generate_llm_response(
         self,
@@ -180,7 +105,8 @@ class LLMClient:
         request_type: RequestType = RequestType.conversation,
         retry_count: int = 1,
         structured: bool = False,
-    ) -> Optional[AIResponse]:
+        response_model: Optional[Type] = None,
+    ):
         model = self.client_model_map[client_name]["model"]
         request_type_value = request_type.value
         system_prompt = self.system_prompt_map[request_type_value]
@@ -188,6 +114,9 @@ class LLMClient:
             {"role": "system", "content": system_prompt},
             *messages,
         ]
+
+        print("full_messages", json.dumps(full_messages, indent=4))
+
         attempt = 0
 
         while attempt <= retry_count:
@@ -197,7 +126,7 @@ class LLMClient:
                     model=model,
                     temperature=temperature,
                     messages=full_messages,
-                    response_model=AIResponse,
+                    response_model=response_model,
                 )
             else:
                 client = self.client_model_map[client_name]["chat"]
@@ -211,43 +140,58 @@ class LLMClient:
             logger.error(f"Attempt {attempt} failed for {client_name}. Retrying...")
             if attempt < retry_count:
                 client_name = "openai"  # Switch to openai for retry
+                model = self.client_model_map[client_name]["model"]
             attempt += 1
 
         return None  # Return None if all retries fail
 
-    def format_response_in_markdown(self, response: str) -> Optional[str]:
+    def classify_user_request(
+        self, message: str, client_name: str = "groq"
+    ) -> Optional[RequestType]:
         try:
-            return self.llm_response(
-                messages=[
-                    {"role": "system", "content": formatting_prompt},
-                    {"role": "user", "content": response},
-                ],
-                temperature=0.0,
-                client_name="groq",
-                structured=False,
-            ).content.strip()
+            client = self.client_model_map[client_name]["instructor"]
+            model = self.client_model_map[client_name]["model"]
+            messages = [
+                {"role": "system", "content": classify_request},
+                {"role": "user", "content": message},
+            ]
+            response = client.create(
+                model=model,
+                messages=messages,
+                response_model=RequestType,
+            )
+            return response
         except Exception as e:
-            logger.error(f"Error formatting response in markdown: {e}")
+            logger.error(f"Error classifying user request: {e}")
             return None
 
-    def create_title_from_transcript(self, transcript: str) -> Optional[str]:
+    def prepare_tickets_from_thread(
+        self, messages: List[Dict[str, str]], client_name: str = "together"
+    ) -> Optional[List[IssueTicket]]:
         try:
-            return self.llm_response(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Your job is to create a single phrase title for a voice memo.",
-                    },
-                    {"role": "user", "content": transcript},
-                ],
-                client_name="groq",
-                structured=False,
-            ).content.strip()
+            client = self.client_model_map[client_name]["instructor"]
+            model = self.client_model_map[client_name]["model"]
+
+            full_messages = [
+                {
+                    "role": "system",
+                    "content": "Your job is to prepare a list of issue tickets from a conversation thread and return the list of tickets in JSON format.",
+                },
+                *messages,
+            ]
+
+            return client.create(
+                model=model,
+                messages=full_messages,
+                temperature=0.3,
+                response_model=List[IssueTicket],
+            )
+
         except Exception as e:
-            logger.error(f"Error creating title from transcript: {e}")
+            logger.error(f"Error preparing tickets from thread: {e}")
             return None
 
-    def _process_audio_file(self, file_url: str, file_type: str) -> Optional[str]:
+    def transcribe_audio(self, file_url: str, file_type: str) -> Optional[str]:
         try:
             audio_file_path = save_file(file_url, file_type)
             audio_file = open(audio_file_path, "rb")
@@ -260,32 +204,52 @@ class LLMClient:
             logger.error(f"Error processing audio file: {e}")
             return None
 
-    def transcribe_audio(self, file_url: str, file_type: str) -> Optional[str]:
-        return self._process_audio_file(file_url, file_type)
-
-    def _save_speech_file(self, text: str, file_path: str) -> None:
+    def create_speech(self, text: str) -> None:
+        speech_file_path = "tmp/speech.mp3"
         try:
             response = self.openai_client.audio.speech.create(
                 model="tts-1", voice="alloy", input=text
             )
-            with open(file_path, "wb") as file:
+            with open(speech_file_path, "wb") as file:
                 file.write(response.content)
         except Exception as e:
             logger.error(f"Error saving speech file: {e}")
 
-    def create_speech(self, text: str) -> None:
-        speech_file_path = "tmp/speech.mp3"
-        self._save_speech_file(text, speech_file_path)
+    def describe_image(
+        self,
+        file_url: str,
+        image_media_type: str,
+        message: Optional[str] = None,
+        mode: str = None,
+        remote: bool = False,
+        client_name: str = "anthropic",
+    ) -> Optional[str]:
+        if client_name == "anthropic":
+            return self.describe_vision_anthropic(
+                file_url, image_media_type, message, mode, remote
+            )
+        elif client_name == "openai":
+            return self.describe_image_openai(file_url)
+        return None
 
     def describe_vision_anthropic(
-        self, file_url: str, image_media_type: str, message: Optional[str] = None
+        self,
+        file_url: str,
+        image_media_type: str,
+        message: Optional[str] = None,
+        mode: str = None,
+        remote: bool = False,
     ) -> Optional[str]:
         try:
-            if message:
-                prompt = f"The user's request is {message}. Your job is to describe this image in as much detail as possible as it relates to the user's request to be used in your response."
+            if mode:
+                prompt = self.system_prompt_map[mode]
             else:
                 prompt = "Describe this image in as much detail as possible. Extract as much information as possible from the image."
-            image_data = get_file_data(file_url)
+
+            if message:
+                prompt += f"\nThe user also sent the following message along with the image: {message}"
+
+            image_data = get_file_data(file_url, remote=remote)
             messages = [
                 {
                     "role": "user",
@@ -315,7 +279,7 @@ class LLMClient:
             logger.error(f"Error describing vision: {e}")
             return None
 
-    def describe_image(self, file_url: str) -> Optional[str]:
+    def describe_image_openai(self, file_url: str) -> Optional[str]:
         try:
             messages = [
                 {

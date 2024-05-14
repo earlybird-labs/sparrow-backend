@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List
 from slack_sdk.errors import SlackApiError
-from .logger import logger
+from app.logger import logger
 
 
 class SlackClient:
